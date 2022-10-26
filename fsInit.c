@@ -61,24 +61,42 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
 	printf ("Initializing File System with %ld blocks with a block size of %ld\n", numberOfBlocks, blockSize);
 	/* TODO: Add any code you need to initialize your file system. */
 
+	//loading the VCB block into 
 	vcb = malloc(blockSize);
 	if(vcb == NULL){ return -1; }; // returns a error that the Volume Control Block isn't initialized
 
-	vcb->number_of_blocks = numberOfBlocks;
-	vcb->blocks_available = numberOfBlocks;
-	vcb->size_of_block = blockSize;
-	vcb->signature = SIGNATURE;
+	LBAread(vcb, 1, 0);
 
-	printf("\nVCB Initialized\n");
-	printVCB();
+	if(vcb->signature == SIGNATURE){
+		printf("\nVCB already exitst!\n");
+		printVCB();
+
+	}
+	else{
+		vcb->size_of_block = blockSize;
+		vcb->number_of_blocks = numberOfBlocks;
+		vcb->blocks_available = numberOfBlocks;
+		vcb->signature = SIGNATURE;
+		LBAwrite(vcb, 1, 0);
+
+		//free block map that represents the whole volume
+		//beginds directly after the VCB;
+
+
+
+		printf("\nVCB Initialized!!\n");
+		printVCB();
+	}
 	return 0;
 }
 
 void initBitmap(){
 	//set up bitmap
-	bitmap = malloc(vcb->size_of_block * 5);
+	vcb->bitmap_starting_index = 1;
+	uint64_t available_blocks = (vcb->number_of_blocks/vcb->size_of_block) + 1;
 
-
+	u_int8_t* freespace_map = malloc(5 * vcb->size_of_block);
+	
 
 }
 
