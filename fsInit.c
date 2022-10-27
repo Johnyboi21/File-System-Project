@@ -58,7 +58,7 @@ typedef struct Directory{
 
 //might have to change add externt ot be used throughout the project
 VCB* vcb;
-uint32_t* bitmap;
+unsigned char* bitmap;
 
 void printVCB();
 void initBitmap();
@@ -87,7 +87,7 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
 		vcb->blocks_available = numberOfBlocks;
 		vcb->signature = SIGNATURE;
 		initBitmap();
-		//LBAwrite(vcb, 1, 0);
+		LBAwrite(vcb, 1, 0);
 
 		//free block map that represents the whole volume
 		//beginds directly after the VCB;
@@ -99,23 +99,32 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
 	return 0;
 }
 
+
 void initBitmap(){
-	//set up bitmap
-	uint32_t* freespace_map2 = malloc(5 * vcb->size_of_block);
-	bitmap = malloc(5 * vcb->number_of_blocks);
 
-	printf("\n%ls\n", bitmap);
+	//allocate bitmap i.e  5 * 512 (bytes)
+	bitmap = malloc(5 * vcb->size_of_block);
 
-	// for(int i = 0 ; i < vcb->number_of_blocks; i++){
-	// 		bitmap[i] = 0;
-	// }
+	//size of blocks in bytes -not bit.
 
-
+	//first byte - 0000 0011 (0 means allocated, 1 free).
+	bitmap[0] = 0x03;
 	
+	//Set rest of "bits" as free
+	for(int i = 1; i < 5 * vcb->size_of_block; i++){
+		bitmap[i] = 0xFF; //i.e 1111 1111
+	}
 
-	//LBAwrite(freespace_map2, 5, 1);
-	
+	//step d of free space
+	LBAwrite(bitmap, 5, 1);
 
+	/*
+	e. 
+	Return the starting block number of the free space
+	 to the VCB init that called you so it knows how to set the 
+	 VCB structure variable that indicates where free space starts.
+	 Or mark it yourself if the VCB is a global structure.
+	*/
 	vcb->bitmap_starting_index = 1;
 }
 
