@@ -24,8 +24,10 @@
 #include "fsLow.h"
 #include "mfs.h"
 
-#define SIGNATURE 0xC0FFEE
+#define SIGNATURE 0xC0FFE
 #define MAX_DE_NAME 256
+#define MAX_DIRENTRIES 51
+#define DIRECTORY_BYTE_SIZE 60
 
 typedef struct VCB{
 	uint64_t size_of_block; //size of a individual block
@@ -48,12 +50,19 @@ typedef struct DE{
 	time_t last_modified;
 } DE;
 
+typedef struct Directory{
+	char directory_name[MAX_DE_NAME];
+	
+}Directory;
+
+
 //might have to change add externt ot be used throughout the project
 VCB* vcb;
 uint32_t* bitmap;
 
 void printVCB();
 void initBitmap();
+void initRootDir();
 
 int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
 
@@ -68,7 +77,7 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
 	LBAread(vcb, 1, 0);
 
 	if(vcb->signature == SIGNATURE){
-		printf("\nVCB already exitst!\n");
+		printf("\nVCB already exist!\n");
 		printVCB();
 
 	}
@@ -77,11 +86,11 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
 		vcb->number_of_blocks = numberOfBlocks;
 		vcb->blocks_available = numberOfBlocks;
 		vcb->signature = SIGNATURE;
-		LBAwrite(vcb, 1, 0);
+		initBitmap();
+		//LBAwrite(vcb, 1, 0);
 
 		//free block map that represents the whole volume
 		//beginds directly after the VCB;
-
 
 
 		printf("\nVCB Initialized!!\n");
@@ -92,14 +101,28 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
 
 void initBitmap(){
 	//set up bitmap
-	vcb->bitmap_starting_index = 1;
-	uint64_t available_blocks = (vcb->number_of_blocks/vcb->size_of_block) + 1;
+	uint32_t* freespace_map2 = malloc(5 * vcb->size_of_block);
+	bitmap = malloc(5 * vcb->number_of_blocks);
 
-	u_int8_t* freespace_map = malloc(5 * vcb->size_of_block);
+	printf("\n%ls\n", bitmap);
+
+	// for(int i = 0 ; i < vcb->number_of_blocks; i++){
+	// 		bitmap[i] = 0;
+	// }
+
+
 	
 
+	//LBAwrite(freespace_map2, 5, 1);
+	
+
+	vcb->bitmap_starting_index = 1;
 }
 
+
+void initRootDir(){
+
+}
 	
 	
 void exitFileSystem (){

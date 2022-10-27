@@ -67,6 +67,6 @@ run: $(ROOTNAME)$(HW)$(FOPTION)
 	./$(ROOTNAME)$(HW)$(FOPTION) $(RUNOPTIONS)
 
 vrun: $(ROOTNAME)$(HW)$(FOPTION)
-	valgrind ./$(ROOTNAME)$(HW)$(FOPTION) $(RUNOPTIONS)
+	valgrind --leak-check=full --show-leak-kinds=all ./$(ROOTNAME)$(HW)$(FOPTION) $(RUNOPTIONS)
 
 
