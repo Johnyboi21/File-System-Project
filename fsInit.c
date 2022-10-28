@@ -23,24 +23,17 @@
 
 #include "fsLow.h"
 #include "mfs.h"
+#include "directory_entry.h"
+#include "free_space_helpers.h"
+#include "constants.h"
 
 #define SIGNATURE 0xC0FFE
-#define MAX_DE_NAME 256
-#define MAX_DIRENTRIES 51
+//#define MAX_DE_NAME 256
+//#define MAX_DIRENTRIES 51
 #define DIRECTORY_BYTE_SIZE 60
 
-typedef struct VCB{
-	uint64_t size_of_block; //size of a individual block
-	uint64_t number_of_blocks; //counts the number of blocks
-	uint64_t blocks_available; //holds blocks available
-	uint64_t freespace_available; //holds the number of free blocks available
-	uint64_t bitmap_starting_index; //where the bitmap starts
 
-
-	uint64_t signature; //used to check if own the 
-
-} VCB;
-
+/* Defined in directory_entry.h
 typedef struct DE{
 	char name[MAX_DE_NAME];
 	uint64_t beginning_block;
@@ -49,6 +42,7 @@ typedef struct DE{
 	time_t creation_date;
 	time_t last_modified;
 } DE;
+*/
 
 typedef struct Directory{
 	char directory_name[MAX_DE_NAME];
@@ -57,12 +51,13 @@ typedef struct Directory{
 
 
 //might have to change add externt ot be used throughout the project
-VCB* vcb;
-unsigned char* bitmap;
+
 
 void printVCB();
 void initBitmap();
 void initRootDir();
+//int getFreeBlock();
+
 
 int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
 
@@ -95,6 +90,11 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
 
 		printf("\nVCB Initialized!!\n");
 		printVCB();
+
+        DirectoryInit(NULL);
+        printf("\nMade root!\n");
+		printVCB();
+
 	}
 	return 0;
 }
@@ -135,11 +135,13 @@ void initRootDir(){
 	
 	
 void exitFileSystem (){
+    LBAwrite(vcb, 1, 0);
+    LBAwrite(bitmap, 5, 1);
 	free(vcb);
 	free(bitmap);
 	printf ("System exiting\n");
 	}
 
 void printVCB(){
-	printf("Size of a Block: %ld\nNumber of Blocks: %ld\nBlocks Available: %ld\nSignature: %ld\n", vcb->size_of_block, vcb->number_of_blocks, vcb->blocks_available, vcb->signature);
+	printf("Size of a Block: %ld\nNumber of Blocks: %ld\nBlocks Available: %ld\nSignature: %ld and\n", vcb->size_of_block, vcb->number_of_blocks, vcb->blocks_available, vcb->signature);
 }
