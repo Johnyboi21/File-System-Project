@@ -25,8 +25,9 @@
 
 #define MAX_DE_NAME 256
 #define MAX_DIRENTRIES 51
-#include <stdint.h>
 #include <time.h>
+#include <stdint.h>
+
 typedef struct VCB{
 	uint64_t size_of_block; //size of a individual block
 	uint64_t number_of_blocks; //counts the number of blocks

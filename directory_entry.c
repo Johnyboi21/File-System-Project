@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include "free_space_helpers.h"
 #include <string.h>
+#include "fsLow.h"
 
 /*
     1. Allocate space on disk
