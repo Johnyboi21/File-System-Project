@@ -90,9 +90,11 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
 		vcb->number_of_blocks = numberOfBlocks;
 		vcb->blocks_available = numberOfBlocks;
 		vcb->signature = SIGNATURE;
-		initBitmap();
+		
 		LBAwrite(vcb, 1, 0);
 
+        vcb->blocks_available = vcb->blocks_available - 1;
+        initBitmap();
 		//free block map that represents the whole volume
 		//beginds directly after the VCB;
 
@@ -134,6 +136,8 @@ void initBitmap(){
 	 Or mark it yourself if the VCB is a global structure.
 	*/
 	vcb->bitmap_starting_index = 1;
+    vcb->blocks_available = vcb->blocks_available - 5;
+
 }
 
 

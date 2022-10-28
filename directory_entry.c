@@ -53,6 +53,7 @@ int DirectoryInit(DE* parent){
         is_root = 1;
     }
 
+
     int total_bytes = MAX_DIRENTRIES * sizeof(DE);
     int blocks = total_bytes/512;     // Number of blocks to occupy
     // Catch edge case to prevent too few blocks
@@ -60,7 +61,7 @@ int DirectoryInit(DE* parent){
         blocks = blocks+1;
     }
 
-    DE** directory = malloc(total_bytes);
+    DE* directory = malloc(total_bytes);
     if(directory == NULL){
         printf("Failed to allocate memory for directory init\n");
         return -1;
@@ -68,10 +69,8 @@ int DirectoryInit(DE* parent){
 
     // Set all entries to empty state
     for(int i=0; i < MAX_DIRENTRIES; i++){
-        char* name = "\0";
-        directory[i] = malloc(sizeof(DE));
-        
-        strncpy(directory[i]->name, name, 256);
+        directory[i].name[0] = 0;
+     //   strncpy(directory[i]->name, name, 256);
     }
 
 
@@ -85,28 +84,28 @@ int DirectoryInit(DE* parent){
     
     char* name = ".\0";
     char* name2 = "..\0";
-    strncpy(directory[0]->name, name, 256);
-    directory[0]->location = free_blocks[0];
+    strncpy(directory[0].name, name, 256);
+    directory[0].location = free_blocks[0];
 
-    strncpy(directory[1]->name, name2, 256);
+    strncpy(directory[1].name, name2, 256);
 
     // Handle if root or not
     if(is_root == 1){
-        directory[1]->location = free_blocks[0];
+        directory[1].last_modified = free_blocks[0];
 
     }
     else{
-        directory[1]->location = parent->location;
+        directory[1].location = parent->location;
 
     }
 
     // Set current time to creation date and last modify
     time_t create_time = time(0);
-    directory[0]->creation_date = create_time;
-    directory[0]->last_modified = create_time;
+    directory[0].creation_date = create_time;
+    directory[0].last_modified = create_time;
 
-    directory[1]->creation_date = create_time;
-    directory[1]->last_modified = create_time;
+    directory[1].creation_date = create_time;
+    directory[1].last_modified = create_time;
 
     LBAwrite(directory, blocks, free_blocks[0]);
     vcb->blocks_available = vcb->blocks_available-30;
