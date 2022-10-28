@@ -1,3 +1,29 @@
+/**************************************************************
+* Class:  CSC-415-03 Fall 2021
+* Names:  Richard Aguilar
+*         Melisa Sever
+*         Ryan Scott
+*         Jonathan Valadez
+*
+* Student IDs: 977075554
+*              921662115
+*              921814228
+*              922274961
+*
+* GitHub Name: raguilar0917
+* Group Name: The Beerman Fan Club
+* Project: Basic File System
+*
+* File: directory_entry.c
+*
+* Description: Implements functions from associated head.
+    Contains functions used for directory management, 
+    including init for directories
+*
+* 
+*
+**************************************************************/
+
 #include "directory_entry.h"
 #include "bit_math.h"
 #include "constants.h"

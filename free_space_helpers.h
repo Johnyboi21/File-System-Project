@@ -1,3 +1,27 @@
+/**************************************************************
+* Class:  CSC-415-03 Fall 2021
+* Names:  Richard Aguilar
+*         Melisa Sever
+*         Ryan Scott
+*         Jonathan Valadez
+*
+* Student IDs: 977075554
+*              921662115
+*              921814228
+*              922274961
+*
+* GitHub Name: raguilar0917
+* Group Name: The Beerman Fan Club
+* Project: Basic File System
+*
+* File: free_space_helpers.h
+*
+* Description: Header that defines function prototypes for 
+    functions that help manipulate and request free space
+* 
+*
+**************************************************************/
+
 /*
     Returns first free block starting from param
 */

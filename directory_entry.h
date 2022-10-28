@@ -1,3 +1,29 @@
+/**************************************************************
+* Class:  CSC-415-03 Fall 2021
+* Names:  Richard Aguilar
+*         Melisa Sever
+*         Ryan Scott
+*         Jonathan Valadez
+*
+* Student IDs: 977075554
+*              921662115
+*              921814228
+*              922274961
+*
+* GitHub Name: raguilar0917
+* Group Name: The Beerman Fan Club
+* Project: Basic File System
+*
+* File: directory_entry.h
+*
+* Description: Contains definition of directory entry structure 
+    and prototypes for functions related to manipulating the 
+    directory
+*
+* 
+*
+**************************************************************/
+
 #include <time.h>
 #include <stdint.h>
 #include "fsLow.h"

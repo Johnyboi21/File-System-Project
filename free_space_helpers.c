@@ -1,3 +1,29 @@
+/**************************************************************
+* Class:  CSC-415-03 Fall 2021
+* Names:  Richard Aguilar
+*         Melisa Sever
+*         Ryan Scott
+*         Jonathan Valadez
+*
+* Student IDs: 977075554
+*              921662115
+*              921814228
+*              922274961
+*
+* GitHub Name: raguilar0917
+* Group Name: The Beerman Fan Club
+* Project: Basic File System
+*
+* File: free_space_helpers.c
+*
+* Description: Implements functions from associated header.
+    Contains functions useful for manipulating free space, 
+    as well as sending free blocks to other functions
+*
+* 
+*
+**************************************************************/
+
 #include "free_space_helpers.h"
 #include "bit_math.h"
 #include "constants.h"

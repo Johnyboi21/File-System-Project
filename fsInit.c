@@ -1,9 +1,17 @@
 /**************************************************************
-* Class:  CSC-415-0# Fall 2021
-* Names: 
-* Student IDs:
-* GitHub Name:
-* Group Name:
+* Class:  CSC-415-03 Fall 2021
+* Names:  Richard Aguilar
+*         Melisa Sever
+*         Ryan Scott
+*         Jonathan Valadez
+*
+* Student IDs: 977075554
+*              921662115
+*              921814228
+*              922274961
+*
+* GitHub Name: raguilar0917
+* Group Name: The Beerman Fan Club
 * Project: Basic File System
 *
 * File: fsInit.c
@@ -119,7 +127,6 @@ void initBitmap(){
 	LBAwrite(bitmap, 5, 1);
 
 	/*
-	e. 
 	Return the starting block number of the free space
 	 to the VCB init that called you so it knows how to set the 
 	 VCB structure variable that indicates where free space starts.
@@ -143,5 +150,5 @@ void exitFileSystem (){
 	}
 
 void printVCB(){
-	printf("Size of a Block: %ld\nNumber of Blocks: %ld\nBlocks Available: %ld\nSignature: %ld and\n", vcb->size_of_block, vcb->number_of_blocks, vcb->blocks_available, vcb->signature);
+	printf("Size of a Block: %ld\nNumber of Blocks: %ld\nBlocks Available: %ld\nSignature: %ld\n", vcb->size_of_block, vcb->number_of_blocks, vcb->blocks_available, vcb->signature);
 }
