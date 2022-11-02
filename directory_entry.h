@@ -51,3 +51,22 @@ typedef struct DE{
 */
 
 int DirectoryInit(DE* parent);
+
+
+/*
+    Iterates over given directory pointer
+    Searches for given file_name. 
+    Returns index of found DE, or -1 if not found
+
+*/
+
+int findFileInDirectory(DE* dir, char* file_name);
+
+
+/*
+    Uses findFileInDirectory
+    Returns index of empty DE if found, else -1
+
+*/
+
+int findEmptyEntry(DE* dir);
