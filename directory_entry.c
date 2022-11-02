@@ -55,13 +55,17 @@ int DirectoryInit(DE* parent){
 
 
     int total_bytes = MAX_DIRENTRIES * sizeof(DE);
+    printf("Total bytes is %d\n", total_bytes);
     int blocks = total_bytes/512;     // Number of blocks to occupy
     // Catch edge case to prevent too few blocks
     if(total_bytes % 512 != 0){
         blocks = blocks+1;
     }
 
-    DE* directory = malloc(total_bytes);
+    DE* directory = malloc(512*blocks);
+    // Get a pointer to free blocks
+    int free_blocks = GetNFreeBlocks(blocks);
+    LBAread(directory, blocks, free_blocks);
     if(directory == NULL){
         printf("Failed to allocate memory for directory init\n");
         return -1;
@@ -69,30 +73,35 @@ int DirectoryInit(DE* parent){
 
     // Set all entries to empty state
     for(int i=0; i < MAX_DIRENTRIES; i++){
-        directory[i].name[0] = 0;
-     //   strncpy(directory[i]->name, name, 256);
+        char* name = "\0";
+       // directory[i].name[0] = 0;
+       // printf("%d\n", i);
+   
+        strncpy(directory[i].name, name, 256);
     }
 
+//printf("a\n");
 
-    // Get a pointer to free blocks
-    int* free_blocks = GetNFreeBlocks(blocks);
-    if(free_blocks == NULL){
-
+    
+    if(free_blocks == 0){
+        printf("Failed to find free blocks.\n");
     }
     // Set name and location of DEs
 
+    printf("free_blocks[0] is %d\n", free_blocks);
     
     char* name = ".\0";
     char* name2 = "..\0";
     strncpy(directory[0].name, name, 256);
-    directory[0].location = free_blocks[0];
+    directory[0].location = free_blocks;
 
     strncpy(directory[1].name, name2, 256);
-
+    
+    directory[0].size = blocks;
+    directory[1].size = blocks;
     // Handle if root or not
     if(is_root == 1){
-        directory[1].last_modified = free_blocks[0];
-
+        directory[1].location = free_blocks;
     }
     else{
         directory[1].location = parent->location;
@@ -107,11 +116,85 @@ int DirectoryInit(DE* parent){
     directory[1].creation_date = create_time;
     directory[1].last_modified = create_time;
 
-    LBAwrite(directory, blocks, free_blocks[0]);
-    vcb->blocks_available = vcb->blocks_available-30;
-    free(directory);
+    
    // for(int i=0; i < MAX_DIRENTRIES; i++){
      //   free(directory[i]);
    // }
-    return free_blocks[0];
+
+
+    // Set location of new directory in parent
+    // TODO: Handle for no free entries
+    if(is_root == 0){
+        printf("Naming new file\n");
+        int loc = findEmptyEntry(parent);       // Find index of first free entry
+        if(loc != -1){
+            
+        
+            printf("Dir being put at %d\n", loc); 
+            parent[loc].location = free_blocks;     // Set location of DE to new Dir
+
+            // May take out naming and have something else deal with it
+            char* new = "New File\0";
+            strncpy(parent[loc].name, new, 256);    // Set new name of dir
+            LBAwrite(parent, 30, parent[0].location);   // Write changes to parent
+            // TODO: This seems bad
+                // We need to read and write parent whenever we make changes to one of the 50 files? 1.5 kb?
+            }
+
+    }
+
+
+    //void* realbuff = malloc(512 * blocks);
+    //memcpy(realbuff, directory, );
+    uint64_t write = LBAwrite(directory, blocks, free_blocks);
+    vcb->blocks_available = vcb->blocks_available-blocks;
+    MarkBlocksUsed(free_blocks, blocks);
+    
+    free(directory);
+
+    return free_blocks;
 }
+
+
+/*
+    Iterates over given directory pointer
+    Searches for given file_name. 
+    Returns index of found DE, or -1 if not found
+
+*/
+
+int findFileInDirectory(DE* dir, char* file_name){
+    int i = 0;
+    int not_found = 1;
+
+    // We can start at 2 because 0 and 1 are known
+    for(i=2; i < MAX_DIRENTRIES; i++){
+        if(strcmp(dir[i].name, file_name) == 0){ // Free directory has null name
+            not_found = 0;
+            printf("Found requested at %d\n", i);
+            break;
+        }
+        else{
+            printf("Dir name was %s\n", dir[i].name);
+        }
+
+
+    }
+
+    if(not_found == 1){
+        printf("Couldn't find requested directory\n");
+        i = -1;
+    }
+
+    return i;
+}
+
+/*
+    Uses findFileInDirectory
+    Returns index of empty DE if found, else -1
+
+*/
+int findEmptyEntry(DE* dir){
+    return findFileInDirectory(dir, "\0");
+}
+
