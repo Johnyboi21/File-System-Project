@@ -33,13 +33,13 @@ int GetFreeBlock(int start_pos);
 
     Returns -1 if there are fewer than requested blocks available
 */
-int* GetNFreeBlocks(int blocks);
+int GetNFreeBlocks(int blocks);
 
 /*
     Param: int array of blocks, size of arr
     Returns number of blocks marked as used
 */
-int MarkBlocksUsed(int blocks[], int size);
+int MarkBlocksUsed(int start, int size);
 
 /*
     Version of MarkBlocksUsed that marks only a single block
@@ -47,3 +47,4 @@ int MarkBlocksUsed(int blocks[], int size);
     Returns: number of marked blocks
 */
 int MarkOneBlockUsed(int block);
+

@@ -57,8 +57,10 @@ int GetFreeBlock(int start_pos){
     Returns: Pointer to integer array of blocks
 
     Returns NULL if there are fewer than requested blocks available
+
+    TODO: Probably don't mark used until we use them
 */
-int* GetNFreeBlocks(int blocks){
+int GetNFreeBlocks(int blocks){
     int free_blocks[blocks];    // Array to hold blocks
 
     int start_pos = 0;          // Starting read position for bitmap
@@ -68,7 +70,7 @@ int* GetNFreeBlocks(int blocks){
     for(int i = 0; i < blocks; i++){
         possible_block = GetFreeBlock(start_pos);
         if(possible_block == -1){   // Failed to find enough free blocks
-            return NULL;
+            return 0;
         }
         else{
             free_blocks[i] = possible_block;
@@ -77,14 +79,14 @@ int* GetNFreeBlocks(int blocks){
         }
     }
 
-    int* ret = free_blocks;
+    int ret = free_blocks[0];
     return ret; 
 }
 
 /*
     Param: int array of blocks, size of arr
     Returns number of blocks marked as used
-*/
+
 int MarkBlocksUsed(int blocks[], int size){
     int marked = 0;
     int block = 0;      // Current working block
@@ -100,12 +102,35 @@ int MarkBlocksUsed(int blocks[], int size){
     return marked;
 }
 
+*/
+
+/*
+    Param: int array of blocks, size of arr
+    Returns number of blocks marked as used
+*/
+
+int MarkBlocksUsed(int start, int size){
+    int marked = 0;
+    int block = start;      // Current working block
+    int byte = 0;       // Index into bitmap of the block
+    for(int i = 0; i < size; i++){
+        byte = block/8;
+        // Set byte to new value after flip
+        bitmap[byte] = FlipBitUsed(bitmap[byte], (block % 8));
+        marked++;
+        block++;
+    }
+
+    return marked;
+}
+
 /*
     Version of MarkBlocksUsed that marks only a single block
     Param: int block to be marked
     Returns: number of marked blocks
 */
 int MarkOneBlockUsed(int block){
-    int arr[1] = {block};
-    return MarkBlocksUsed(arr, 1);
+   // int arr[1] = {block};
+    
+    return MarkBlocksUsed(block, 1);
 }
