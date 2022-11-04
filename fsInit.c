@@ -84,6 +84,9 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
 		printf("\nVCB already exist!\n");
 		printVCB();
 
+        bitmap = malloc(5 * vcb->size_of_block);
+        LBAread(bitmap, 5, 1);
+
 	}
 	else{
 		vcb->size_of_block = blockSize;
@@ -104,8 +107,16 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
 
         DirectoryInit(NULL);
         printf("\nMade root!\n");
-		printVCB();
 
+        vcb->root_starting_index = 6;
+        vcb->root_size = 30;
+
+        int i = GetFreeBlock(0);
+        printf("First free block is now at %d\n", i);
+
+        initTestDirs();
+
+        printVCB();
 	}
 	return 0;
 }
@@ -115,6 +126,7 @@ void initBitmap(){
 
 	//allocate bitmap i.e  5 * 512 (bytes)
 	bitmap = malloc(5 * vcb->size_of_block);
+    //LBAread(bitmap, 5, 1);
 
 	//size of blocks in bytes -not bit.
 

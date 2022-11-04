@@ -28,10 +28,10 @@
 #include <stdint.h>
 //const int size_of_block = 512;
 typedef struct DE{
-	char name[256];     // Name of file
-	uint64_t beginning_block;   // 
+	char name[256];             // Name of file
 	uint64_t size;              // Size of DE in bytes
 	uint64_t location;          // Location on disk
+    uint64_t is_directory;
 	time_t creation_date;       // Date created
 	time_t last_modified;       // Recent modify date
 } DE;
@@ -70,3 +70,27 @@ int findFileInDirectory(DE* dir, char* file_name);
 */
 
 int findEmptyEntry(DE* dir);
+
+
+/*
+    Adds several directories and files to the system
+*/
+void initTestDirs();
+
+
+/*
+    Prints names of all files in given directory
+*/
+void printFilesInDir(DE* dir);
+
+/*
+    Prints names of all files in given directory
+    including empty dirs
+*/
+void printFilesInDirWithEmpty(DE* dir);
+
+
+/*
+    Test function that creates blank file in dir
+*/
+int createFileInDir(DE* dir);
