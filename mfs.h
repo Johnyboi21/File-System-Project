@@ -72,7 +72,6 @@ int fs_delete(char* filename);	//removes a file
 struct parseData *parsePath(const char *pathname); //recent directory (n-1)
 
 
-
 // This is the strucutre that is filled in from a call to fs_stat
 struct fs_stat
 	{
@@ -88,8 +87,8 @@ struct fs_stat
 
 typedef struct parseData
 {
-	fdDir *dirPointer;
-	int directoryIndex;
+	fdDir *dirPointer;      
+	int directoryElement;
 
 }parseData;
 

@@ -27,6 +27,10 @@
 
 #include "mfs.h"
 #include "b_io.h"
+#include "directory_entry.h"
+#include "fsLow.h"
+#include "free_space_helpers.h"
+#include "constants.h"
 
 
 // Key directory functions
@@ -96,6 +100,15 @@ relative -> get current working directory.
 
 */
 struct parseData *parsePath(const char *pathname){
+    //30 Blocks i.e 30 * 512 (1 block is 512 bytes)
+    DE* dirBuffer = malloc(15360);
+    char delim[] = "/";
+    parseData data;
+
+    int totalElements = 0;
+    int finished = 0;
+
+
     if(pathname[0] == '\0'){
         printf("Empty path\n");
     }
@@ -103,6 +116,7 @@ struct parseData *parsePath(const char *pathname){
     //here for identification of absolute or relative
     if(pathname[0] == '/'){
         printf("Start at root\n");
+        LBAread(dirBuffer, vcb->root_size, vcb->root_starting_index);
     }
 
     /*
@@ -113,10 +127,6 @@ struct parseData *parsePath(const char *pathname){
 
     char* a = malloc(strlen(pathname));
         strncpy(a, pathname, strlen(pathname));
-
-    char delim[] = "/";
-    parseData data;
-
     /*
     this would get the first root directory name after its /
 
@@ -125,9 +135,21 @@ struct parseData *parsePath(const char *pathname){
     this current element would return A, once that strtok recongizes tha delim "/"
     */
     char* current_element = strtok(a, delim);
-    data.directoryIndex++;
 
-    printf("Active Directory Index Total: %d\n", data.directoryIndex);
+    int indexOfSearch = findFileInDirectory(dirBuffer, current_element);
+
+    if(indexOfSearch != -1 && dirBuffer[indexOfSearch].is_directory == 1){
+        LBAread(dirBuffer, dirBuffer[indexOfSearch].size, dirBuffer[indexOfSearch].location);
+    }
+    //Invalid directory entry.
+    else{
+       printf("Element doesn't exist\n");  
+    }
+
+    data.directoryElement++;
+
+    printf("Active Directory Index Total: %d\n", data.directoryElement);
+    char* next_element = strtok(NULL, delim);
     /*
     this gets the rest of the characters in the given string
     referencing the prior string.
@@ -139,34 +161,51 @@ struct parseData *parsePath(const char *pathname){
     //char* next_element = strtok(NULL, delim);
 
     while(current_element != NULL){
-        printf("%s\n", current_element);
-        current_element = strtok(NULL,delim);
+        current_element = next_element;
+        int indexOfSearch = findFileInDirectory(dirBuffer, current_element);
 
-        data.directoryIndex++;
+        //printf("%s\n", next_element);
+        next_element = strtok(NULL,delim);
+
+        if(indexOfSearch != -1 && dirBuffer[indexOfSearch].is_directory == 1){
+        LBAread(dirBuffer, dirBuffer[indexOfSearch].size, dirBuffer[indexOfSearch].location);
+        }
+        //Invalid directory entry.
+        else{
+             if(indexOfSearch != -1 && current_element == NULL && dirBuffer[indexOfSearch].is_directory == 0) {
+                 data.directoryElement--; // (n-1) we want active valid entries index
+                 printf("Active Directory Index Total: %d\n", data.directoryElement);
+                 finished = 1;
+             }else{
+                printf("Last element doesn't exist\n");
+                break;
+             }
+        }
+        
+        data.directoryElement++;
+        totalElements = data.directoryElement;
+
         if(current_element == NULL){
-            data.directoryIndex--; // (n-1) we want active valid entries index
-            printf("Active Directory Index Total: %d\n", data.directoryIndex);
+            data.directoryElement--; // (n-1) we want active valid entries index
+            printf("Active Directory Index Total: %d\n", data.directoryElement);
+            finished = 1;
         }
     }
-   // token = strtok(NULL, "/");
-     
-    //directory pointer return to n -1
-    data.dirPointer = current_element[data.directoryIndex];
-
-    if(data.directoryIndex != NULL){
-        printf("Last element doesn't exist.");
-        return -1;
-    }
-    else
-        printf("We have %d directory entries", data.directoryIndex);
+   
+   if(finished){
+        fdDir* fd = malloc(sizeof(fdDir));
+        fd->directoryStartLocation = dirBuffer->location;
+        fd->d_reclen = dirBuffer->size;
+        data.dirPointer = fd;
+   }
 
     /*
     Why do we want to know this?
     If we want to create a new directory E, we need a previous directory 
     to locate and create e within.
     */
-
     free(a);
+    free(dirBuffer);
 };
 
 
