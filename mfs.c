@@ -49,6 +49,7 @@ fdDir * fs_opendir(const char *pathname){
 
 struct fs_diriteminfo *fs_readdir(fdDir *dirp){
 
+
 };
 
 int fs_closedir(fdDir *dirp){
@@ -65,6 +66,17 @@ int fs_setcwd(char *pathname){       //linux chdir
 }; 
  
 int fs_isFile(char * filename){     //return 1 if file, 0 otherwise
+int retValue = 0;
+
+if(parsePath(filename)->testDirectoryStatus == 2){
+    retValue = 1;
+
+    return retValue;
+}
+else{
+    retValue = 0;
+    return retValue;
+}
 
 };
 	
@@ -140,10 +152,12 @@ struct parseData *parsePath(const char *pathname){
 
     if(indexOfSearch != -1 && dirBuffer[indexOfSearch].is_directory == 1){
         LBAread(dirBuffer, dirBuffer[indexOfSearch].size, dirBuffer[indexOfSearch].location);
+        data.testDirectoryStatus = 1; //Valid path
     }
     //Invalid directory entry.
     else{
        printf("Element doesn't exist\n");  
+       data.testDirectoryStatus = 0; //Invlaid path
     }
 
     data.directoryElement++;
@@ -169,6 +183,7 @@ struct parseData *parsePath(const char *pathname){
 
         if(indexOfSearch != -1 && dirBuffer[indexOfSearch].is_directory == 1){
         LBAread(dirBuffer, dirBuffer[indexOfSearch].size, dirBuffer[indexOfSearch].location);
+        data.testDirectoryStatus = 1; //Valid path
         }
         //Invalid directory entry.
         else{
@@ -176,8 +191,10 @@ struct parseData *parsePath(const char *pathname){
                  data.directoryElement--; // (n-1) we want active valid entries index
                  printf("Active Directory Index Total: %d\n", data.directoryElement);
                  finished = 1;
+                 data.testDirectoryStatus = 2; //Valid path pointing to file.
              }else{
                 printf("Last element doesn't exist\n");
+                data.testDirectoryStatus = 0; //Invalid path.
                 break;
              }
         }

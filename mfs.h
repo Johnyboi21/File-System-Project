@@ -89,6 +89,8 @@ typedef struct parseData
 {
 	fdDir *dirPointer;      
 	int directoryElement;
+	int isDirectory; 
+
 
 }parseData;
 
