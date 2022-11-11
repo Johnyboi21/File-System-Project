@@ -32,6 +32,10 @@ typedef u_int64_t uint64_t;
 typedef u_int32_t uint32_t;
 #endif
 
+
+// Initialize cwd to root
+char* current_working_dir;
+
 // This structure is returned by fs_readdir to provide the caller with information
 // about each file as it iterates through a directory
 struct fs_diriteminfo
@@ -85,10 +89,13 @@ struct fs_stat
 	/* add additional attributes here for your file system */
 	};
 
+// Structure that includes useful data about a path, to be used with parsePath
 typedef struct parseData
 {
-	fdDir *dirPointer;      
-	int directoryElement;
+	fdDir *dirPointer;      // Pointer to fdDir representing last found directory in path
+	int directoryElement;   // Index of 
+    int testDirectoryStatus;// 0 if invalid path; 1 if path points to dir; 2 if path to file
+    char nameOfLastToken[256];  // Equals name of last token read
 
 }parseData;
 

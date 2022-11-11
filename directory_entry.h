@@ -36,6 +36,14 @@ typedef struct DE{
 	time_t last_modified;       // Recent modify date
 } DE;
 
+typedef struct new_dir_data{
+    uint64_t location;      // Block number of new dir
+    uint64_t index;         // Index of new dir within parent
+
+
+}new_dir_data;
+
+
 /*
     1. Allocate space on disk
     2. Create buffer in memory
@@ -50,7 +58,7 @@ typedef struct DE{
     Returns: Int representing block number of directory
 */
 
-int DirectoryInit(DE* parent);
+struct new_dir_data* DirectoryInit(DE* parent);
 
 
 /*
@@ -94,3 +102,10 @@ void printFilesInDirWithEmpty(DE* dir);
     Test function that creates blank file in dir
 */
 int createFileInDir(DE* dir);
+
+
+/*
+    Returns number of files in given dir pointer
+    Returns 2 on empty directory (contains . and .. only)
+*/
+int numberFilesInDir(DE* dir);

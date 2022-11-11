@@ -48,3 +48,19 @@ int MarkBlocksUsed(int start, int size);
 */
 int MarkOneBlockUsed(int block);
 
+
+
+/*
+    Version of MarkBlocksFree that marks only a single block
+    Param: int block to be marked free
+    Returns: number of marked blocks
+*/
+int MarkOneBlockFree(int block);
+
+
+/*
+    Param: int array of blocks, size of arr
+    Returns number of blocks marked as used
+*/
+
+int MarkBlocksFree(int start, int size);

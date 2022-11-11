@@ -32,6 +32,7 @@
 #include "free_space_helpers.h"
 #include <string.h>
 #include "fsLow.h"
+#include "mfs.h" // Can remove this one later, just for test dir
 
 
 char* int_to_char(int input){
@@ -75,32 +76,55 @@ char* int_to_char(int input){
 
     If parent == null, doing root
 
-    Returns: Int representing block number of directory
+    Returns: struct representing starting block number of directory
+        and index within parent of new directory
 */
 
-int DirectoryInit(DE* parent){
+struct new_dir_data* DirectoryInit(DE* parent){
+    printf("In directory init\n");
+
+    new_dir_data* ret_data = malloc(sizeof(new_dir_data));
+
+    if(ret_data == NULL){
+        printf("\nFailed to allocate memory.\n");
+
+        return NULL;
+    }
+
     int is_root = 0;     // Acts differently if root init
     if(parent == NULL){
         is_root = 1;
+        
     }
 
+    
 
     int total_bytes = MAX_DIRENTRIES * sizeof(DE);
  //   printf("Total bytes is %d\n", total_bytes);
-    int blocks = total_bytes/512;     // Number of blocks to occupy
+    int blocks = total_bytes/vcb->size_of_block;     // Number of blocks to occupy
     // Catch edge case to prevent too few blocks
-    if(total_bytes % 512 != 0){
+    if(total_bytes % vcb->size_of_block != 0){
         blocks = blocks+1;
     }
+    printf("Malloc %d blocks\n", blocks);
+    printf("That's %ld bytes\n", vcb->size_of_block*blocks);
 
-    DE* directory = malloc(512*blocks);
-    // Get a pointer to free blocks
-    int free_blocks = GetNFreeBlocks(blocks);
-    LBAread(directory, blocks, free_blocks);
+    DE* directory = malloc(vcb->size_of_block*blocks);
+            printf("Malloc success\n");
+
     if(directory == NULL){
         printf("Failed to allocate memory for directory init\n");
-        return -1;
+
+        ret_data = NULL;
+        free(ret_data);
+        return NULL;
     }
+
+    // Get a pointer to free blocks
+        printf("About to read directory\n");
+
+    int free_blocks = GetNFreeBlocks(blocks);
+    LBAread(directory, blocks, free_blocks);
 
     // Set all entries to empty state
     for(int i=0; i < MAX_DIRENTRIES; i++){
@@ -109,7 +133,7 @@ int DirectoryInit(DE* parent){
        // printf("%d\n", i);
    
         strncpy(directory[i].name, name, 256);
-        directory[i].is_directory = 0;
+        directory[i].is_directory = 1;
     }
 
 //printf("a\n");
@@ -175,22 +199,27 @@ int DirectoryInit(DE* parent){
             free(new);
             // TODO: This seems bad
                 // We need to read and write parent whenever we make changes to one of the 50 files? 1.5 kb?
+
+            ret_data->index = loc;
+
         }
 
     }
+
+// ******TODO: Figure out how to set the index normally, since that one up there is wrong
 
 
     //void* realbuff = malloc(512 * blocks);
     //memcpy(realbuff, directory, );
     uint64_t write = LBAwrite(directory, blocks, free_blocks);
-    vcb->blocks_available = vcb->blocks_available-blocks;
-    MarkBlocksUsed(free_blocks, blocks);
 
     LBAread(directory, directory[0].size, directory[0].location); // Refresh parent after changes
 
+    directory = NULL;
     free(directory);
 
-    return free_blocks;
+    ret_data->location = free_blocks;
+    return ret_data;
 }
 
 
@@ -250,6 +279,11 @@ void initTestDirs(){
     DirectoryInit(dir);
 
     printFilesInDir(dir);
+    printf("\nRemoving 2\n");
+    fs_rmdir("/2");
+    
+    LBAread(dir, vcb->root_size, vcb->root_starting_index);
+    printFilesInDir(dir);
 
     printf("Changing to dir named %s\n", dir[3].name);
     printf("%ld\n", LBAread(dir, dir[3].size, dir[3].location));
@@ -278,7 +312,7 @@ void initTestDirs(){
     createFileInDir(dir);
     printFilesInDir(dir);
 
-
+    
 
 }
 
@@ -294,12 +328,14 @@ int createFileInDir(DE* dir){
 
     int size = 256;
     char* new_file = malloc(size);
-    dir[index].size = size;
+    dir[index].size = 1;
     dir[index].is_directory = 0;
+    int free_block = GetFreeBlock(0);
+    dir[index].location = free_block;
     char* new = int_to_char(index);
     strncpy(dir[index].name, new, 256);    // Set new name of file
     LBAwrite(dir, dir[0].size, dir[0].location);
-
+    MarkOneBlockUsed(free_block);
     LBAread(dir, dir[0].size, dir[0].location); // Read after changes
 
     free(new);
@@ -328,4 +364,21 @@ void printFilesInDirWithEmpty(DE* dir){
         printf("Entry %d is:     %s\n", i, dir[i].name);
 
     }
+}
+
+
+/*
+    Returns number of files in given dir pointer
+    Returns 2 on empty directory (contains . and .. only)
+*/
+int numberFilesInDir(DE* dir){
+    int files = 0;
+
+    for(int i=0; i < MAX_DIRENTRIES; i++){
+        if(strcmp(dir[i].name, "\0") != 0){
+            files++;
+        }
+    }
+
+    return files;
 }

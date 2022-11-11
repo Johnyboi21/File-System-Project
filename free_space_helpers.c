@@ -39,7 +39,7 @@ int GetFreeBlock(int start_pos){
 
     // Loop over bitmap; break if free bit found
         // This can be optimized a bit if we know which bytes are not free
-    for(int i = start_pos; i < 5 * vcb->size_of_block; i++){
+    for(int i = start_pos; i < vcb->bitmap_size_bytes; i++){
 		location_in_byte = FindFreeBit(bitmap[i]);
         if(location_in_byte != -1){
             // One byte (i) and offset by location_in_bytes bits
@@ -56,31 +56,59 @@ int GetFreeBlock(int start_pos){
     Param: int number of blocks to receive
     Returns: Pointer to integer array of blocks
 
-    Returns NULL if there are fewer than requested blocks available
+    Returns -1 if there are fewer than requested blocks available
 
-    TODO: Probably don't mark used until we use them
+    Marks received blocks as used
+    If less are used than requested, make sure to free them
+
 */
 int GetNFreeBlocks(int blocks){
-    int free_blocks[blocks];    // Array to hold blocks
+    int free_blocks_start = -1;    // Array to hold blocks
 
     int start_pos = 0;          // Starting read position for bitmap
     int possible_block = -1;    // Set to ret of GetFreeBlock
+    int cont_blocks_found = 0;
+    int last_free = -1;
 
     // Find blocks free blocks and add to array
-    for(int i = 0; i < blocks; i++){
-        possible_block = GetFreeBlock(start_pos);
-        if(possible_block == -1){   // Failed to find enough free blocks
-            return 0;
+
+    // 00011101111
+        // Find 4 blocks
+    
+    while(cont_blocks_found < blocks && start_pos < vcb->number_of_blocks){
+        printf("Checking starting from %d\n", start_pos);
+        for(int i = 0; i < blocks; i++){
+            possible_block = GetFreeBlock(start_pos);
+            printf("Free? At %d\n", possible_block);
+            if(last_free == -1){
+                last_free = possible_block - 1;
+            }
+
+            if(possible_block == -1 || possible_block != last_free+1){   // Did not find N contiguous free
+                printf("Failed to find that many blocks. Last free was %d and we got %d \n", last_free, possible_block);
+
+                MarkBlocksFree(free_blocks_start, cont_blocks_found);
+                free_blocks_start = -1;
+                cont_blocks_found = 0;
+                last_free = -1;
+                break;
+            }
+            else{
+                if(free_blocks_start == -1){
+                    free_blocks_start = possible_block;
+                }
+                last_free = possible_block;
+                cont_blocks_found++;
+                printf("Found %d\n", cont_blocks_found);
+                start_pos = possible_block/8;   // Start searching from that byte next time
+                MarkOneBlockUsed(possible_block);
+            }
         }
-        else{
-            free_blocks[i] = possible_block;
-            start_pos = possible_block/8;   // Start searching from that byte next time
-            MarkOneBlockUsed(possible_block);
-        }
+        start_pos++;
+
     }
 
-    int ret = free_blocks[0];
-    return ret; 
+    return free_blocks_start; 
 }
 
 /*
@@ -121,6 +149,8 @@ int MarkBlocksUsed(int start, int size){
         block++;
     }
 
+    vcb->blocks_available = vcb->blocks_available - marked;
+
     return marked;
 }
 
@@ -133,4 +163,36 @@ int MarkOneBlockUsed(int block){
    // int arr[1] = {block};
     
     return MarkBlocksUsed(block, 1);
+}
+
+/*
+    Version of MarkBlocksFree that marks only a single block
+    Param: int block to be marked free
+    Returns: number of marked blocks
+*/
+int MarkOneBlockFree(int block){    
+    return MarkBlocksFree(block, 1);
+}
+
+
+/*
+    Param: int array of blocks, size of arr
+    Returns number of blocks marked as used
+*/
+
+int MarkBlocksFree(int start, int size){
+    int marked = 0;
+    int block = start;      // Current working block
+    int byte = 0;       // Index into bitmap of the block
+    for(int i = 0; i < size; i++){
+        byte = block/8;
+        // Set byte to new value after flip
+        bitmap[byte] = FlipBitFree(bitmap[byte], (block % 8));
+        marked++;
+        block++;
+    }
+
+    vcb->blocks_available = vcb->blocks_available + marked;
+
+    return marked;
 }
