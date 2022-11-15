@@ -51,12 +51,13 @@ struct fs_diriteminfo
 // which directory entry you are currently processing so that everytime the caller
 // calls the function readdir, you give the next entry in the directory
 typedef struct
-	{
-	/*****TO DO:  Fill in this structure with what your open/read directory needs  *****/
-	unsigned short  d_reclen;		/*length of this record */
-	unsigned short	dirEntryPosition;	/*which directory entry position, like file pos */
-	uint64_t	directoryStartLocation;		/*Starting LBA of directory */
-	} fdDir;
+    {
+    /*****TO DO:  Fill in this structure with what your open/read directory needs  *****/
+    unsigned short  d_reclen;               /*length of this record */
+    unsigned short    dirEntryPosition;     /*which directory entry position, like file pos */
+    uint64_t    directoryStartLocation;     /*Starting LBA of directory */
+    struct fs_diriteminfo* ii;
+    } fdDir;
 
 // Key directory functions
 int fs_mkdir(const char *pathname, mode_t mode);
@@ -100,6 +101,20 @@ typedef struct parseData
 }parseData;
 
 int fs_stat(const char *path, struct fs_stat *buf);
+
+/*
+    Takes valid path and formats to be in line with what we expect
+    Ex. Remove extra '/', resolve and remove '.' and '..' 
+
+    Returns buffer containing formatted path
+*/
+char* formatPath(char *pathname);
+
+/*
+    Uses strtok to count num tokens in path
+    Returns number of tokens
+*/
+int countPathTokens(char* pathname);
 
 #endif
 

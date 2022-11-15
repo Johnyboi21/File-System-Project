@@ -125,7 +125,12 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
 
 
     //parsePath("/Cool Directory\0");
-    fs_mkdir("/Cool Directory\0", 0);
+ //   fs_mkdir("/NewDir\0", 0);
+    current_working_dir = malloc(MAX_PATH_LENGTH);
+    strncpy(current_working_dir, "/\0", 2);
+
+
+    formatPath("/./..");
 	return 0;
 }
 

@@ -206,8 +206,6 @@ struct new_dir_data* DirectoryInit(DE* parent){
 
     }
 
-// ******TODO: Figure out how to set the index normally, since that one up there is wrong
-
 
     //void* realbuff = malloc(512 * blocks);
     //memcpy(realbuff, directory, );
@@ -235,7 +233,7 @@ int findFileInDirectory(DE* dir, char* file_name){
     int not_found = 1;
 
     // We can start at 2 because 0 and 1 are known
-    for(i=2; i < MAX_DIRENTRIES; i++){
+    for(i=0; i < MAX_DIRENTRIES; i++){
         if(strcmp(dir[i].name, file_name) == 0){ // Free directory has null name
             not_found = 0;
           //  printf("Found requested at %d\n", i);

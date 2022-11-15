@@ -25,6 +25,7 @@
 
 #define MAX_DE_NAME 256
 #define MAX_DIRENTRIES 51
+#define MAX_PATH_LENGTH 4096
 #include <time.h>
 #include <stdint.h>
 
