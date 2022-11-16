@@ -20,6 +20,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include "b_io.h"
+#include "mfs.h"
 
 #define MAXFCBS 20
 #define B_CHUNK_SIZE 512
@@ -30,6 +31,10 @@ typedef struct b_fcb
 	char * buf;		//holds the open file buffer
 	int index;		//holds the current position in the buffer
 	int buflen;		//holds how many valid bytes are in the buffer
+
+	unsigned short d_reclen;    /* length of this record */
+    unsigned char fileType;    
+    char d_name[256]; 
 	} b_fcb;
 	
 b_fcb fcbArray[MAXFCBS];
@@ -53,7 +58,7 @@ b_io_fd b_getFCB ()
 	{
 	for (int i = 0; i < MAXFCBS; i++)
 		{
-		if (fcbArray[i].buff == NULL)
+		if (fcbArray[i].buf == NULL)
 			{
 			return i;		//Not thread safe (But do not worry about it for this assignment)
 			}
@@ -66,16 +71,26 @@ b_io_fd b_getFCB ()
 // O_RDONLY, O_WRONLY, or O_RDWR
 b_io_fd b_open (char * filename, int flags)
 	{
-	b_io_fd returnFd;
-
 	//*** TODO ***:  Modify to save or set any information needed
 	//
-	//
-		
+	//	
 	if (startup == 0) b_init();  //Initialize our system
+	int flagsPassed = flags;	//obtain flag choice by user.
 	
-	returnFd = b_getFCB();				// get our own file descriptor
-										// check for error - all used FCB's
+	b_io_fd returnFd = b_getFCB();				// get our own file descriptor
+	fcbArray[returnFd].buf = malloc(sizeof(char)* MAXFCBS);	//allocate memory
+
+	if(fcbArray[returnFd].buf == NULL){		//catch test
+		prinft("Failed to allocate memory");
+		return - 1;
+	}
+
+	parseData *fdData = parsePath(filename);	//obtain file
+
+	//get file information.
+	fcbArray[returnFd].d_reclen = fdData->dirPointer->ii->d_reclen;	
+	fcbArray[returnFd].fileType = fdData->dirPointer->ii->fileType;
+	fcbArray[returnFd].d_name == fdData->dirPointer->ii->d_name;
 	
 	return (returnFd);						// all set
 	}
