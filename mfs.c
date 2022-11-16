@@ -57,15 +57,16 @@ int fs_mkdir(const char *pathname, mode_t mode){
     //    printf("Going to put the new file in index %d of the dir starting at \n", d->index, parent->location);
         // Rename new file to given name
         strncpy(parent[d->index].name, data->nameOfLastToken, 256);
-        d = NULL;
+        
         free(d);
+        d = NULL;
         // Save changes
         LBAwrite(parent, parent[0].size, parent[0].location);
         printf("\nWrote changes\n");
-        printFilesInDir(parent);
+      //  printFilesInDir(parent);
 
-        parent = NULL;
         free(parent);
+        parent = NULL;
     }
     else if(data->testDirectoryStatus == 1 || data->testDirectoryStatus == 2){
             printf("Error: File already exists\n");
@@ -77,8 +78,9 @@ int fs_mkdir(const char *pathname, mode_t mode){
         ret_value = -1;
     }
 
-    data = NULL;
+
     free(data);
+    data = NULL;
     
     return(ret_value);
     
@@ -132,11 +134,13 @@ int fs_rmdir(const char *pathname){
     }
 
 
-    dir_info = NULL;
-    dir = NULL;
+    
     
     free(dir_info);
     free(dir);
+
+    dir_info = NULL;
+    dir = NULL;
 
     return is_success;
 };
@@ -182,10 +186,10 @@ fdDir * fs_opendir(const char *pathname){
 };
 
 struct fs_diriteminfo *fs_readdir(fdDir *dirp){
-    printf("In readdir\n");
+   // printf("In readdir\n");
     struct fs_diriteminfo* retPtr = NULL;
     //********** Figure out what data this dirp has
-    printf("Dirp has reclen %d, starts at %ld\n", dirp->d_reclen, dirp->directoryStartLocation);
+   // printf("Dirp has reclen %d, starts at %ld\n", dirp->d_reclen, dirp->directoryStartLocation);
     DE* directory = malloc(dirp->d_reclen * vcb->size_of_block);
     LBAread(directory, dirp->d_reclen, dirp->directoryStartLocation);
     dirp->ii = malloc(sizeof(struct fs_diriteminfo));
@@ -203,15 +207,15 @@ struct fs_diriteminfo *fs_readdir(fdDir *dirp){
 
     free(directory);
 
-    printf("Finished readdir\n");
+   // printf("Finished readdir\n");
     return retPtr;
 };
 
 int fs_closedir(fdDir *dirp){
-  //  free(dirp);
+    free(dirp);
 
 
-    //return 1;
+    return 1;
 };
 
 // Misc directory functions
@@ -247,9 +251,10 @@ int countPathTokens(char* pathname){
         token = strtok(NULL, "/");
     }
 
-
-    pathCopy = NULL;
+    
     free(pathCopy);
+    pathCopy = NULL;
+
     return numTokens;
 }
 
@@ -273,7 +278,7 @@ char* formatPath(char *pathname){
         (i-1)th value set to 0 if ".." is found
             This can cascade with multiple ".." in a row. 
     */
-    char* tokenTracker = malloc(sizeof(char*)*numTokens);
+    char* tokenTracker = malloc(sizeof(char*)* (numTokens));
     for(int i=0; i < numTokens; i++){
         tokenTracker[i] = 1;
     }
@@ -387,11 +392,11 @@ char* formatPath(char *pathname){
   //  printf("Path %s was converted to %s\n", pathname, newPath);
 
 
-    tokenTracker = NULL;
-    pathCopy = NULL;
     free(tokenTracker);
     free(pathCopy);
-
+    tokenTracker = NULL;
+    pathCopy = NULL;
+   
     return newPath;
 }
 
@@ -442,8 +447,9 @@ int fs_setcwd(char *pathname){       //linux chdir
 
             // Overwrite with tweaked path
             strncpy(current_working_dir, newPath, MAX_PATH_LENGTH);
-            cwd = NULL;
+            
             free(cwd);
+            cwd = NULL;
         }
         else{
 
@@ -453,16 +459,18 @@ int fs_setcwd(char *pathname){       //linux chdir
         }
 
 
-        newPath = NULL;
+        
         free(newPath);
-
+        newPath = NULL;
         
         printf("Changed cwd to %s\n", current_working_dir);
 
     }
 
 
+    free(data->dirPointer);
     free(data);
+    data = NULL;
     return ret_val;
 }; 
  
@@ -491,12 +499,12 @@ int fs_isDir(char * pathname){      //return 1 if directory, 0 otherwise
     parseData *isDirData = parsePath(pathname);
 
     if(isDirData->testDirectoryStatus == 1){
-        printf("This is a directory\n");
+      //  printf("This is a directory\n");
         isDirRet = 1; //Is Directory
         
     }
     else{
-        printf("This is not a directory\n");
+        //printf("This is not a directory\n");
         isDirRet = 0;  //Is not a Directory
         
     }
@@ -534,13 +542,13 @@ int fs_stat(const char* pathname, struct fs_stat* buf){
     if(!fs_isDir(path)){ printf("\nfs_stat ERROR: Pathname Isn't a Directory"); return -1; }
     parseData* parsed_data = parsePath(path);
 
-    DE* directory = malloc(sizeof(DE));
+    DE* directory = malloc(parsed_data->dirPointer->d_reclen * vcb->size_of_block);
     LBAread(directory, parsed_data->dirPointer->d_reclen, parsed_data->dirPointer->directoryStartLocation);
     //int file_index = findFileInDirectory(directory, pathname);
 
     buf->st_blksize = vcb->size_of_block;
     buf->st_blocks = directory[parsed_data->directoryElement].size;
-    buf->st_size = buf->st_blocks;
+    buf->st_size = parsed_data->dirPointer->d_reclen * vcb->size_of_block;
     buf->st_createtime = directory[parsed_data->directoryElement].creation_date;
     buf->st_modtime = directory[parsed_data->directoryElement].last_modified;
     
@@ -565,9 +573,9 @@ relative -> get current working directory.
 
 */
 struct parseData *parsePath(const char *pathname){
-    printf("\n\nAttempting to parse %s\n", pathname);
+   // printf("\n\nAttempting to parse %s\n", pathname);
     //30 Blocks i.e 30 * 512 (1 block is 512 bytes)
-    DE* dirBuffer = malloc(15360);
+    DE* dirBuffer = malloc(MAX_DIRENTRIES * vcb->size_of_block);
     char delim[] = "/";
     parseData* data = malloc(sizeof(parseData));
     int isEmptyPath = 0;
@@ -588,23 +596,26 @@ struct parseData *parsePath(const char *pathname){
     
     //here for identification of absolute or relative
     if(pathname[0] == '/'){
-        printf("Start at root\n");
+     //   printf("Start at root\n");
         LBAread(dirBuffer, vcb->root_size, vcb->root_starting_index);
-        printFilesInDir(dirBuffer);
+     //   printFilesInDir(dirBuffer);
 
         
     }
     else{
-        printf("Relative path. CWD is %s\n", current_working_dir);
-        printf("Going to go through with %s", fs_getcwd(pathBuffer, MAX_PATH_LENGTH));
+    //    printf("Apparently it's relative. The path is %s\n", pathname);
+      //  printf("Relative path. CWD is %s\n", current_working_dir);
+     //   printf("Going to go through with %s", fs_getcwd(pathBuffer, MAX_PATH_LENGTH));
         parseData* relativeData = parsePath(fs_getcwd(pathBuffer, MAX_PATH_LENGTH));
         
         LBAread(dirBuffer, relativeData->dirPointer->d_reclen, relativeData->dirPointer->directoryStartLocation);
-        printf("Finished reading relative.\n");
-        printFilesInDir(dirBuffer);
+        //printf("Finished reading relative.\n");
+     //   printFilesInDir(dirBuffer);
 
-        relativeData = NULL;
+        
+        free(relativeData->dirPointer);
         free(relativeData);
+        relativeData = NULL;
     }
 
     /*
@@ -622,7 +633,7 @@ struct parseData *parsePath(const char *pathname){
     this current element would return A, once that strtok recongizes tha delim "/"
     */
     char* current_element = strtok(pathBuffer, delim);
-    printf("Current token is %s\n", current_element);
+   // printf("Current token is %s\n", current_element);
     
     /*
     this gets the rest of the characters in the given string
@@ -633,16 +644,16 @@ struct parseData *parsePath(const char *pathname){
     the next string which would be B after that delim is found.
     */
     char* next_element = strtok(NULL, delim);
-    printf("Next token is %s\n", next_element);
+//    printf("Next token is %s\n", next_element);
 
     
     int indexOfSearch = -1;
     
     // Check first element in path
     if(current_element != NULL){
-        printf("\nAbout to name it\n");
+  //      printf("\nAbout to name it\n");
         strncpy(data->nameOfLastToken, current_element, 256);
-        printf("Success\n\n");
+  //      printf("Success\n\n");
 
         indexOfSearch = findFileInDirectory(dirBuffer, current_element);
        // printf("Found that element at %d. Is it dir? %ld\n", indexOfSearch, dirBuffer[indexOfSearch].is_directory);
@@ -651,12 +662,12 @@ struct parseData *parsePath(const char *pathname){
             // If it's a directory, we want to read into our dirBuffer
             if(dirBuffer[indexOfSearch].is_directory == 1){
                 LBAread(dirBuffer, dirBuffer[indexOfSearch].size, dirBuffer[indexOfSearch].location);
-                printf("\n\nNew directory is: \n");
-                printFilesInDir(dirBuffer);
+   //             printf("\n\nNew directory is: \n");
+           //     printFilesInDir(dirBuffer);
 
                 // If this is the last element of the path, we ended in a directory
                 if(next_element == NULL){
-                    printf("Last element is a directory\n");
+   //                 printf("Last element is a directory\n");
                     data->testDirectoryStatus = 1;
                     data->directoryElement = indexOfSearch;
 
@@ -665,7 +676,7 @@ struct parseData *parsePath(const char *pathname){
             else{
                 // If it wasn't a directory and it's the last elem, then must be a file
                 if(next_element == NULL){
-                    printf("Last element is a file\n");
+   //                 printf("Last element is a file\n");
 
                     data->testDirectoryStatus = 2;
                     data->directoryElement = indexOfSearch;
@@ -673,12 +684,12 @@ struct parseData *parsePath(const char *pathname){
             }
         }
         else{
-            printf("Found element in path that does not exist\n");
+    //        printf("Found element in path that does not exist\n");
 
             // If we aren't at the last element when we find something that doesn't exist, 
                 // path is invalid
             if(next_element == NULL){
-                printf("Last element does not exist. If you're mkdir, this is good\n");
+   //             printf("Last element does not exist. If you're mkdir, this is good\n");
             }
             else{
                 printf("Error: Path was invalid.\n");
@@ -699,31 +710,31 @@ struct parseData *parsePath(const char *pathname){
     // Check the rest of the elements in the path, if they exist
         // Mostly duplicated from above, except while condition
     while(next_element != NULL && dirBuffer != NULL){
-        printf("In the while\n");
+  //      printf("In the while\n");
         current_element = next_element;
         strncpy(data->nameOfLastToken, current_element, 256);
 
-        printf("Current token is now %s\n", current_element);
+//        printf("Current token is now %s\n", current_element);
 
         // Find index of this file
         indexOfSearch = findFileInDirectory(dirBuffer, current_element);
-        printf("Found that element at %d\n", indexOfSearch);
+ //       printf("Found that element at %d\n", indexOfSearch);
 
         //printf("%s\n", next_element);
         next_element = strtok(NULL,delim);
-        printf("Next token is %s\n", next_element);
+   //     printf("Next token is %s\n", next_element);
 
         // If file exists
         if(indexOfSearch != -1){
             // If it's a directory, we want to read into our dirBuffer
             if(dirBuffer[indexOfSearch].is_directory == 1){
                 LBAread(dirBuffer, dirBuffer[indexOfSearch].size, dirBuffer[indexOfSearch].location);
-                printf("\n\nNew directory is: \n");
-                printFilesInDir(dirBuffer);
+ //               printf("\n\nNew directory is: \n");
+            //    printFilesInDir(dirBuffer);
 
                 // If this is the last element of the path, we ended in a directory
                 if(next_element == NULL){
-                    printf("Last element is a directory\n");
+ //                   printf("Last element is a directory\n");
                     data->testDirectoryStatus = 1;
                     data->directoryElement = indexOfSearch;
 
@@ -732,7 +743,7 @@ struct parseData *parsePath(const char *pathname){
             else{
                 // If it wasn't a directory and it's the last elem, then must be a file
                 if(next_element == NULL){
-                    printf("Last element is a file\n");
+  //                  printf("Last element is a file\n");
 
                     data->testDirectoryStatus = 2;
                     data->directoryElement = indexOfSearch;
@@ -740,12 +751,12 @@ struct parseData *parsePath(const char *pathname){
             }
         }
         else{
-            printf("Found element in path that does not exist\n");
+  //          printf("Found element in path that does not exist\n");
 
             // If we aren't at the last element when we find something that doesn't exist, 
                 // path is invalid
             if(next_element == NULL){
-                printf("Last element does not exist. If you're mkdir, this is good\n");
+ //               printf("Last element does not exist. If you're mkdir, this is good\n");
 
             }
             else{

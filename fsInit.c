@@ -130,7 +130,6 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
     strncpy(current_working_dir, "/\0", 2);
 
 
-    formatPath("/./..");
 	return 0;
 }
 
@@ -202,6 +201,7 @@ void exitFileSystem (){
     LBAwrite(bitmap, vcb->bitmap_size_blocks, vcb->bitmap_starting_index);
 	free(vcb);
 	free(bitmap);
+    free(current_working_dir);
 	printf ("System exiting\n");
 	}
 

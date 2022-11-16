@@ -44,7 +44,7 @@
 #define CMDCP2L_ON	0
 #define CMDCP2FS_ON	0
 #define CMDCD_ON	1
-#define CMDPWD_ON	0
+#define CMDPWD_ON	1
 #define CMDTOUCH_ON	0
 #define CMDCAT_ON	0
 
@@ -101,6 +101,8 @@ int displayFiles (fdDir * dirp, int flall, int fllong)
 	
 	di = fs_readdir (dirp);
 	printf("\n");
+
+    printf("display files with long? %d\n", fllong);
 	while (di != NULL) 
 		{
 		if ((di->d_name[0] != '.') || (flall)) //if not all and starts with '.' it is hidden
