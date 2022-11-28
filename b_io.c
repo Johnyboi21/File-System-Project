@@ -20,6 +20,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include "b_io.h"
+#include "mfs.h"
 
 #define MAXFCBS 20
 #define B_CHUNK_SIZE 512
@@ -30,6 +31,12 @@ typedef struct b_fcb
 	char * buf;		//holds the open file buffer
 	int index;		//holds the current position in the buffer
 	int buflen;		//holds how many valid bytes are in the buffer
+	int individualFilePosition; //keep track where we are in a individual file.
+
+	unsigned short d_reclen;    //length of this record 
+    unsigned char fileType;    
+    char d_name[256]; 
+	int flagPassed;
 	} b_fcb;
 	
 b_fcb fcbArray[MAXFCBS];
@@ -53,7 +60,7 @@ b_io_fd b_getFCB ()
 	{
 	for (int i = 0; i < MAXFCBS; i++)
 		{
-		if (fcbArray[i].buff == NULL)
+		if (fcbArray[i].buf == NULL)
 			{
 			return i;		//Not thread safe (But do not worry about it for this assignment)
 			}
@@ -66,19 +73,34 @@ b_io_fd b_getFCB ()
 // O_RDONLY, O_WRONLY, or O_RDWR
 b_io_fd b_open (char * filename, int flags)
 	{
-	b_io_fd returnFd;
-
 	//*** TODO ***:  Modify to save or set any information needed
 	//
-	//
-		
+	//	
 	if (startup == 0) b_init();  //Initialize our system
+
 	
-	returnFd = b_getFCB();				// get our own file descriptor
-										// check for error - all used FCB's
-	
-	return (returnFd);						// all set
+	b_io_fd returnFd = b_getFCB();				// get our own file descriptor
+	fcbArray[returnFd].buf = malloc(sizeof(char)* MAXFCBS);	//allocate memory
+	fcbArray[returnFd].flagPassed = flags;
+
+	if(fcbArray[returnFd].buf == NULL){		//catch test
+		prinft("Failed to allocate memory");
+		return - 1;
 	}
+
+	parseData *fdData = parsePath(filename);	//obtain file
+
+	//get file information.
+	fcbArray[returnFd].d_reclen = fdData->dirPointer->ii->d_reclen;	
+	fcbArray[returnFd].fileType = fdData->dirPointer->ii->fileType;
+	fcbArray[returnFd].d_name == fdData->dirPointer->ii->d_name;
+
+	//To-Do: Free mallocs.
+	free(fdData->dirPointer);
+	free(fdData);
+	
+	return (returnFd);
+	} 
 
 
 // Interface to seek function	
@@ -91,9 +113,54 @@ int b_seek (b_io_fd fd, off_t offset, int whence)
 		{
 		return (-1); 					//invalid file descriptor
 		}
-		
-		
-	return (0); //Change this
+	/*
+	Note:
+		fd = file we are working in.
+		offset = the position amount we are trying to shift (foward or backward)
+		whence = either from Start of File, Current Spot in file, or End of File.
+	*/
+	int fileLength = sizeof(fcbArray[fd].buf);
+	if(offset > 0){
+		//Start offset from start of file.
+	if(whence = SEEK_SET){
+		//set file position to start of file minus offset.
+		fcbArray[fd].individualFilePosition = fcbArray[fd].buf[0] - offset;
+	}
+	//Start offset from end of file.
+	else if(whence = SEEK_END){
+		//set file position to end of file minus offset.
+		fcbArray[fd].individualFilePosition = fileLength - offset;
+
+	}
+	//Start offset from current file position.
+	else{
+		//setfile position to current file position minus offset.
+		fcbArray[fd].individualFilePosition =- offset; 
+	}
+
+	}
+	if(offset < 0){
+
+	//Start offset from start of file.
+	if(whence = SEEK_SET){
+	//set position to start of buffer plus offset.
+	fcbArray[fd].individualFilePosition = fcbArray[fd].buf[0] + offset;
+
+	}
+	//Start offset from end of file.
+	else if(whence = SEEK_END){
+	//set position to end of file plus offset.
+	fcbArray[fd].individualFilePosition = fileLength + offset; 	
+
+	}
+	//Start offset from current file position.
+	else{
+	//set position to current position plus offset.
+	fcbArray[fd].individualFilePosition += offset;
+	}
+	}
+
+	return fcbArray[fd].individualFilePosition; //Change this
 	}
 
 
@@ -109,6 +176,7 @@ int b_write (b_io_fd fd, char * buffer, int count)
 		return (-1); 					//invalid file descriptor
 		}
 		
+	
 		
 	return (0); //Change this
 	}
