@@ -38,7 +38,7 @@
 /****   SET THESE TO 1 WHEN READY TO TEST THAT COMMAND ****/
 #define CMDLS_ON	1
 #define CMDCP_ON	0
-#define CMDMV_ON	0
+#define CMDMV_ON	1
 #define CMDMD_ON	1
 #define CMDRM_ON	1
 #define CMDCP2L_ON	0
@@ -102,7 +102,6 @@ int displayFiles (fdDir * dirp, int flall, int fllong)
 	di = fs_readdir (dirp);
 	printf("\n");
 
-    printf("display files with long? %d\n", fllong);
 	while (di != NULL) 
 		{
 		if ((di->d_name[0] != '.') || (flall)) //if not all and starts with '.' it is hidden
@@ -364,8 +363,15 @@ int cmd_cp (int argcnt, char *argvec[])
 int cmd_mv (int argcnt, char *argvec[])
 	{
 #if (CMDMV_ON == 1)				
-	return -99;
-	// **** TODO ****  For you to implement	
+    if(argcnt != 3){
+        printf("ERROR: Enter file to move and location to move to\n");
+        return 0;
+    }
+
+    fs_move(argvec[1], argvec[2]);
+
+
+    return 1;
 #endif
 	return 0;
 	}

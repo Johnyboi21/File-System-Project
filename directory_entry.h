@@ -29,7 +29,8 @@
 //const int size_of_block = 512;
 typedef struct DE{
 	char name[256];             // Name of file
-	uint64_t size;              // Size of DE in bytes
+	uint64_t size;              // Size of DE in blocks
+    uint64_t size_bytes;        // Size of DE in bytes
 	uint64_t location;          // Location on disk
     uint64_t is_directory;
 	time_t creation_date;       // Date created
@@ -37,9 +38,11 @@ typedef struct DE{
 } DE;
 
 typedef struct new_dir_data{
+    // Info on new dir
     uint64_t location;      // Block number of new dir
     uint64_t index;         // Index of new dir within parent
 
+    DE* newDir;             // Points to new location if dir resized; else NULL
 
 }new_dir_data;
 
@@ -109,3 +112,21 @@ int createFileInDir(DE* dir);
     Returns 2 on empty directory (contains . and .. only)
 */
 int numberFilesInDir(DE* dir);
+
+
+/*
+    Reallocates memory for input dir
+    Requests new free blocks for new size, and moves
+    dir as appropriate
+
+    Returns new dir on success, NULL on fail
+
+*/
+DE* resize(DE* dir);
+
+
+
+char* int_to_char(int input);
+
+
+int appendDEtoDir(DE* fileParent, int index, DE* dir, DE* file);

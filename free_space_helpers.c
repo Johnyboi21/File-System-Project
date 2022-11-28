@@ -54,7 +54,7 @@ int GetFreeBlock(int start_pos){
 
 /*
     Param: int number of blocks to receive
-    Returns: Pointer to integer array of blocks
+    Returns: Starting block number of free blocks allocated
 
     Returns -1 if there are fewer than requested blocks available
 
@@ -108,6 +108,7 @@ int GetNFreeBlocks(int blocks){
 
     }
 
+    printf("Marked %d blocks used. Now %ld total blocks.\n", cont_blocks_found, vcb->blocks_available);
     return free_blocks_start; 
 }
 
@@ -194,5 +195,7 @@ int MarkBlocksFree(int start, int size){
 
     vcb->blocks_available = vcb->blocks_available + marked;
 
+
+    printf("Marked %d blocks free. Now %ld total blocks.\n", size, vcb->blocks_available);
     return marked;
 }

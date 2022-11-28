@@ -29,14 +29,14 @@ int GetFreeBlock(int start_pos);
 
 /*
     Param: int number of blocks to receive
-    Returns: Pointer to integer array of blocks
+    Returns: Starting position of `blocks` free blocks
 
     Returns -1 if there are fewer than requested blocks available
 */
 int GetNFreeBlocks(int blocks);
 
 /*
-    Param: int array of blocks, size of arr
+    Param: int starting block number, number of blocks to mark used
     Returns number of blocks marked as used
 */
 int MarkBlocksUsed(int start, int size);

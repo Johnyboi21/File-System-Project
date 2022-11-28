@@ -108,26 +108,48 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
 
         new_dir_data* data = DirectoryInit(NULL);
         vcb->root_starting_index = data->location;
-
-        data = NULL;
+        
         free(data);
-        printf("\nMade root!\n");
+        data = NULL;
 
-        vcb->root_size = 30;
+        // Have to get 30 here somehow
+        int root_size = sizeof(DE) * MAX_DIRENTRIES;
+        if(root_size % vcb->size_of_block != 0){
+            root_size = (root_size/vcb->size_of_block)+1;
+        }
+        else
+        root_size = root_size/vcb->size_of_block;
+        vcb->root_size = root_size;
 
+        printf("\nMade root! Size is %d\n", root_size);
+
+
+        LBAwrite(vcb, 1, 0);
+        
         int i = GetFreeBlock(0);
         printf("First free block is now at %d\n", i);
 
        // initTestDirs();
 
         printVCB();
+
+
+        DE* r = malloc(vcb->root_size * vcb->size_of_block);
+        LBAread(r, vcb->root_size, vcb->root_starting_index);
+        
+        createFileInDir(r);
+
+        free(r);
+        
+
+        
+        
 	}
 
-
-    //parsePath("/Cool Directory\0");
- //   fs_mkdir("/NewDir\0", 0);
+    // Set initial CWD to root
     current_working_dir = malloc(MAX_PATH_LENGTH);
     strncpy(current_working_dir, "/\0", 2);
+
 
 
 	return 0;

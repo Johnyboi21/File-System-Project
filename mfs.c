@@ -45,25 +45,33 @@
 int fs_mkdir(const char *pathname, mode_t mode){
     parseData* data = parsePath(pathname);
     int ret_value = 0;
-
+    
+    // If path is valid but last token DNE, create new dir with last token name  
     if(data->testDirectoryStatus == 0 && data->dirPointer != NULL){
         DE* parent = malloc(vcb->size_of_block * data->dirPointer->d_reclen);
 
         LBAread(parent, data->dirPointer->d_reclen, data->dirPointer->directoryStartLocation);
 
-        // Create new directory in parent
 
         new_dir_data* d = DirectoryInit(parent);
-    //    printf("Going to put the new file in index %d of the dir starting at \n", d->index, parent->location);
+
+        // True if maxdir has been reached. Resize parent to accomodate new dir
+        if(d->newDir != NULL){
+
+            parent = malloc(vcb->size_of_block * d->newDir->size);
+
+            LBAread(parent, d->newDir->size, d->newDir->location);
+            free(d->newDir);
+
+        }
         // Rename new file to given name
-        strncpy(parent[d->index].name, data->nameOfLastToken, 256);
+        strncpy(parent[d->index].name, data->nameOfLastToken, MAX_DE_NAME);
         
         free(d);
         d = NULL;
+
         // Save changes
         LBAwrite(parent, parent[0].size, parent[0].location);
-        printf("\nWrote changes\n");
-      //  printFilesInDir(parent);
 
         free(parent);
         parent = NULL;
@@ -79,6 +87,7 @@ int fs_mkdir(const char *pathname, mode_t mode){
     }
 
 
+    free(data->dirPointer);
     free(data);
     data = NULL;
     
@@ -134,8 +143,7 @@ int fs_rmdir(const char *pathname){
     }
 
 
-    
-    
+    free(dir_info->dirPointer);
     free(dir_info);
     free(dir);
 
@@ -153,9 +161,9 @@ fdDir * fs_opendir(const char *pathname){
     //Parse data and get information
     if(fs_isDir(path) == 0){ printf("\nfs_opendir ERROR: Pathname is not a directory\n"); return NULL;}
 
-    printf("About to parse in open\n");
+   // printf("About to parse in open\n");
     parseData* parsed_data = parsePath(path);
-    printf("Finished parse in open\n");
+   // printf("Finished parse in open\n");
     unsigned short d_reclen = parsed_data->dirPointer->d_reclen;
     unsigned short dirEntryPosition = parsed_data->dirPointer->dirEntryPosition;
     uint64_t directoryStartLocation = parsed_data->dirPointer->directoryStartLocation;
@@ -169,8 +177,10 @@ fdDir * fs_opendir(const char *pathname){
     fdPtr->directoryStartLocation = directoryPtr->location;
     fdPtr->d_reclen = directoryPtr->size;
     fdPtr->dirEntryPosition = 0;
+    fdPtr->ii = malloc(sizeof(struct fs_diriteminfo));
     
     //free stuff
+    free(parsed_data->dirPointer);
     free(parsed_data);
     free(directoryPtr);
     free(path);
@@ -187,33 +197,41 @@ fdDir * fs_opendir(const char *pathname){
 
 struct fs_diriteminfo *fs_readdir(fdDir *dirp){
    // printf("In readdir\n");
-    struct fs_diriteminfo* retPtr = NULL;
-    //********** Figure out what data this dirp has
-   // printf("Dirp has reclen %d, starts at %ld\n", dirp->d_reclen, dirp->directoryStartLocation);
+    int foundItem = 0;
+
+
     DE* directory = malloc(dirp->d_reclen * vcb->size_of_block);
     LBAread(directory, dirp->d_reclen, dirp->directoryStartLocation);
+
+    free(dirp->ii);
+    dirp->ii = NULL;
     dirp->ii = malloc(sizeof(struct fs_diriteminfo));
-    for(int i = dirp->dirEntryPosition; i < MAX_DIRENTRIES; i++){
+    for(int i = dirp->dirEntryPosition; i < ((directory->size*vcb->size_of_block)/(sizeof(DE))); i++){
    //     printf("Before compare, name is %ld\n", strlen(directory[i].name));
         if(strcmp(directory[i].name, "\0") != 0){
             strncpy(dirp->ii->d_name, directory[i].name, MAX_DE_NAME);
             dirp->ii->fileType = directory[i].is_directory; //have something to tell you file type
             dirp->dirEntryPosition = i + 1;
-            retPtr = dirp->ii;
+            foundItem = 1;
             break;
         }
     }
 
 
     free(directory);
+    
+    if(foundItem == 0){
+        return NULL;
+    }
 
-   // printf("Finished readdir\n");
-    return retPtr;
+    return dirp->ii;
 };
 
 int fs_closedir(fdDir *dirp){
+    free(dirp->ii);
     free(dirp);
 
+    printf("Closed, should have freed\n");
 
     return 1;
 };
@@ -349,12 +367,6 @@ char* formatPath(char *pathname){
 
     }
 
-   // printf("After that, state of things is ");
-    for(int i =0; i < numTokens; i++){
-        printf("%d", tokenTracker[i]);
-    }
-
-    printf("\n");
 
     // Reset strtok and iterator
     strncpy(pathCopy, pathname, MAX_PATH_LENGTH);
@@ -489,6 +501,7 @@ int fs_isFile(char * filename){     //return 1 if file, 0 otherwise
         
     }
     
+    free(isFileData->dirPointer);
     free(isFileData);   //free in relation to fact that parsePath malloc'd
 
     return isFileValue;
@@ -509,6 +522,7 @@ int fs_isDir(char * pathname){      //return 1 if directory, 0 otherwise
         
     }
 
+    free(isDirData->dirPointer);
     free(isDirData);   //free in relation to fact that parsePath malloc'd
 
     return isDirRet;
@@ -539,25 +553,34 @@ int fs_stat(const char* pathname, struct fs_stat* buf){
     char* path = malloc(MAX_PATH_LENGTH);
     strncpy(path, pathname, MAX_PATH_LENGTH);
 
-    if(!fs_isDir(path)){ printf("\nfs_stat ERROR: Pathname Isn't a Directory"); return -1; }
+    if(fs_isDir(path) == -1){ printf("\nfs_stat ERROR: Pathname %s Isn't a Directory\n", pathname); return -1; }
     parseData* parsed_data = parsePath(path);
 
     DE* directory = malloc(parsed_data->dirPointer->d_reclen * vcb->size_of_block);
     LBAread(directory, parsed_data->dirPointer->d_reclen, parsed_data->dirPointer->directoryStartLocation);
     //int file_index = findFileInDirectory(directory, pathname);
 
+    
     buf->st_blksize = vcb->size_of_block;
+  //  printf("blksize %ld\n", buf->st_blksize);
     buf->st_blocks = directory[parsed_data->directoryElement].size;
+    //printf("blocks %ld\n", buf->st_blocks);
     buf->st_size = parsed_data->dirPointer->d_reclen * vcb->size_of_block;
+   // printf("st size %ld\n", buf->st_size);
     buf->st_createtime = directory[parsed_data->directoryElement].creation_date;
+   // printf("create %ld\n", buf->st_createtime);
     buf->st_modtime = directory[parsed_data->directoryElement].last_modified;
+   // printf("mod %ld\n", buf->st_modtime);
     
      //if(file_index != -1){
         //fill in struct here
      //}  
     
     free(directory);
+    free(parsed_data->dirPointer);
+    free(parsed_data);
     free(path);
+
 
     return 1;
 }
@@ -575,7 +598,10 @@ relative -> get current working directory.
 struct parseData *parsePath(const char *pathname){
    // printf("\n\nAttempting to parse %s\n", pathname);
     //30 Blocks i.e 30 * 512 (1 block is 512 bytes)
-    DE* dirBuffer = malloc(MAX_DIRENTRIES * vcb->size_of_block);
+
+    // Allocate buffer at root's size
+        // This size may not match other directories. Will resize if needed
+    DE* dirBuffer = malloc(vcb->root_size * vcb->size_of_block);
     char delim[] = "/";
     parseData* data = malloc(sizeof(parseData));
     int isEmptyPath = 0;
@@ -769,17 +795,24 @@ struct parseData *parsePath(const char *pathname){
         
     }
    
+
+    data->directoryElement = indexOfSearch;
+
     if(dirBuffer != NULL){
         fdDir* fd = malloc(sizeof(fdDir));
         fd->directoryStartLocation = dirBuffer->location;
         fd->d_reclen = dirBuffer->size;
         data->dirPointer = fd;
+
+        // If a file, dirPointer is parent; use element to get file's size
+        if(data->testDirectoryStatus == 2){
+            fd->d_reclen = dirBuffer[data->directoryElement].size;
+        }
     }
     else{
         data->dirPointer = NULL;
 
     }
-    data->directoryElement = indexOfSearch;
 
   //  printf("Last token read was %s\n", data->nameOfLastToken);
     
@@ -795,6 +828,125 @@ struct parseData *parsePath(const char *pathname){
     return data;
 }
 
+/*
+    Move given file or directory to destination directory
+
+    
+    Return 1 on success, else 0
+*/
+
+int fs_move(char* src, char* dest){
+    printf("Move called with %s and %s\n", src, dest);
+
+    parseData* source = parsePath(src);
+
+    if(source->testDirectoryStatus == 0){
+        printf("Source to move does not exist.\n");
+    }
+
+    parseData* destination = parsePath(dest);
+
+    if(destination->testDirectoryStatus != 1){
+        printf("Destination is invalid.\n");
+
+    }
+
+    printf("Source is element %d of its parent.\n", source->directoryElement);
+    printf("Destination is size %d\n",destination->dirPointer->d_reclen);
+
+
+    if(source->testDirectoryStatus == 2){
+
+    }
+    else if(source->testDirectoryStatus == 1){
+
+    }
+
+    DE* file = malloc(source->dirPointer->d_reclen * vcb->size_of_block);
+    DE* dir = malloc(destination->dirPointer->d_reclen * vcb->size_of_block);
+
+    LBAread(file, source->dirPointer->d_reclen, source->dirPointer->directoryStartLocation);
+    LBAread(dir, destination->dirPointer->d_reclen, destination->dirPointer->directoryStartLocation);
+
+    DE* fileParent = malloc(file[1].size * vcb->size_of_block);
+    LBAread(fileParent, file[1].size, file[1].location);
+
+    printf("File's location is %ld\n", file[1].location);
+    printf("The file's location and size of parent is %ld and %ld\n", file[1].size, file[1].location);
+    printf("Compare that to size and location of root, %ld and %ld\n", vcb->root_size, vcb->root_starting_index);
+    printf("The parent's info on itself is size %ld and location %ld\n", fileParent->size, fileParent->location);
+
+    int res = appendDEtoDir(fileParent, source->directoryElement, dir, file);
+
+    if(res != 2){
+        free(dir);
+
+        // May need to resize fileParent here
+    }
+
+
+    strncpy(fileParent[source->directoryElement].name, "\0", MAX_DE_NAME);
+    LBAwrite(fileParent, fileParent->size, fileParent->location);
 
 
 
+    free(file);
+    free(fileParent);
+    free(source->dirPointer);
+    free(source);
+    free(destination->dirPointer);
+    free(destination);
+    return 0;
+}
+
+/*
+
+    Returns 1 on success, 2 if target dest resized
+    - If target dest resized, the dir pointer changed location,
+        so the caller no longer knows where dir is to free.
+        appendDEtoDir will free in this case
+*/
+
+int appendDEtoDir(DE* fileParent, int index, DE* dir, DE* file){
+    int dest = findEmptyEntry(dir);
+    int ret = 1;
+
+    printf("Found free space at %d\n", dest);
+    if(dest == -1){
+        printf("That means it was full, so resize now.\n");
+
+        dir = resize(dir);
+
+        ret = 2;
+
+        dest = findEmptyEntry(dir);
+    }
+
+    printf("Again, that free spot is %d\n", dest);
+
+    dir[dest].location = fileParent[index].location;
+    strncpy(dir[dest].name, fileParent[index].name, MAX_DE_NAME);
+    dir[dest].creation_date = fileParent[index].creation_date;
+    dir[dest].last_modified = fileParent[index].last_modified;
+    dir[dest].size = fileParent[index].size;
+    dir[dest].size_bytes = fileParent[index].size_bytes;
+
+
+    // Update file with new parent info
+    file[1].location = dir->location;
+    file[1].size = dir->size;
+    file[1].size_bytes = dir->size_bytes;
+
+    printf("The name there is now %s\n", dir[dest].name);
+   // printf("To confirm it was added, we now have %s at %d\n", file->name, findFileInDirectory(dir, file->name));
+
+
+    LBAwrite(dir, dir->size, dir->location);
+    LBAwrite(file, file->size, file->location);
+
+
+    if(ret == 2){
+        free(dir);
+    }
+    return ret;
+}

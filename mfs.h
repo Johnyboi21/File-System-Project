@@ -116,5 +116,8 @@ char* formatPath(char *pathname);
 */
 int countPathTokens(char* pathname);
 
+
+int fs_move(char* src, char* dest);
+
 #endif
 
