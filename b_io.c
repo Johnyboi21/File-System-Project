@@ -182,14 +182,41 @@ int b_write (b_io_fd fd, char * buffer, int count)
 	{
 	if (startup == 0) b_init();  //Initialize our system
 
-	// check that fd is between 0 and (MAXFCBS-1)
-	if ((fd < 0) || (fd >= MAXFCBS)){
-		return (-1); 					//invalid file descriptor
-}
-		
+    // check that fd is between 0 and (MAXFCBS-1)
+    if ((fd < 0) || (fd >= MAXFCBS)){
+        return (-1);                    //invalid file descriptor
+    }
+
+	//Flag check for write call
+	if(!fcbArray[fd].flagPassed & O_WRONLY){
+		printf("\nb_read ERROR: NO WRITE FLAG PASSED.\n");
+		return -1;
+	}
+    //total bytes written count;
+    int bytesWroteCount = 0;
 	
-		
-	return (0); //Change this
+    while(bytesWroteCount < count){
+        int bytesWritten = 0;
+        if((bytesWroteCount + B_CHUNK_SIZE) > count){
+            bytesWritten = B_CHUNK_SIZE;
+        }
+        else{
+            bytesWritten = (count - bytesWroteCount);
+        }
+
+        //copy user data to our writee buffer.
+        memcpy(fcbArray->buf + (sizeof(DE)*2) + fcbArray->individualFilePosition,
+         buffer + bytesWroteCount, bytesWritten);
+
+        bytesWroteCount += bytesWritten;
+    }
+	//EOF check
+	if(bytesWroteCount + count > fcbArray->size_bytes){;
+		printf("EOF Reached: \n");
+		count = fcbArray->size_bytes - bytesWroteCount + count;
+	}
+
+    return bytesWroteCount;
 	}
 
 
