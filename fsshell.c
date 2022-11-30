@@ -46,7 +46,7 @@
 #define CMDCD_ON	1
 #define CMDPWD_ON	1
 #define CMDTOUCH_ON	0
-#define CMDCAT_ON	0
+#define CMDCAT_ON	1
 
 
 typedef struct dispatch_t
@@ -302,7 +302,7 @@ int cmd_cat (int argcnt, char *argvec[])
                 {
                 readcnt = b_read (testfs_src_fd, buf, BUFFERLEN-1);
                 buf[readcnt] = '\0';
-                printf("%s", buf);
+                printf("Cat read: %s\n", buf);
                 } while (readcnt == BUFFERLEN);
         b_close (testfs_src_fd);
 #endif

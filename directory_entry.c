@@ -33,8 +33,6 @@
 #include <string.h>
 #include "fsLow.h"
 #include "mfs.h" // Can remove this one later, just for test dir
-#include "constants.h"
-
 
 char* int_to_char(int input){
     int hundreds = input / 100;
@@ -553,7 +551,6 @@ int createFileInDir(DE* dir){
     dir[index].location = free_blocks;
     dir[index].last_modified = new_file->last_modified;
     dir[index].creation_date = new_file->creation_date;
-    dir[index].size_bytes = new_file->size_bytes;
 
 
     // Set new name of file
@@ -578,6 +575,8 @@ int createFileInDir(DE* dir){
     
 
     new_file->size_bytes+=50;
+    dir[index].size_bytes = new_file->size_bytes;
+
 
     LBAwrite(dir, dir->size, dir->location);
 

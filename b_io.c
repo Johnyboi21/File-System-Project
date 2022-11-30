@@ -23,6 +23,7 @@
 #include "mfs.h"
 #include "constants.h"
 #include "directory_entry.h"
+#include "fsLow.h"
 
 #define MAXFCBS 20
 #define B_CHUNK_SIZE 512
@@ -32,14 +33,14 @@ typedef struct b_fcb
 	/** TODO add al the information you need in the file control block **/
 	char * buf;		//holds the open file buffer
 	int index;		//holds the current position in the buffer
-	int buflen;		//holds how many valid bytes are in the buffer
+	int bufLen;		//holds how many valid bytes are in the buffer
 	int individualFilePosition; //keep track where we are in a individual file.
 	int currentBlock;	//holds currentBlock  
 	int size_bytes;	//holds size of entry in bytes
 
 
 	unsigned short d_reclen;    //length of this record 
-    uint64_t    directoryStartLocation
+    uint64_t    directoryStartLocation;
     unsigned char fileType;        
     char d_name[256]; 
 	int flagPassed;
@@ -82,34 +83,47 @@ b_io_fd b_open (char * filename, int flags)
 	//*** TODO ***:  Modify to save or set any information needed
 	//
 	//	
+
+    printf("Opening %s\n", filename);
 	if (startup == 0) b_init();  //Initialize our system
+	parseData *fdData = parsePath(filename);	//obtain file
+    if(fdData->testDirectoryStatus != 2){
+        printf("Error: Target is not a file.\n");
+        return -1;
+    }
+
 
 	
 	b_io_fd returnFd = b_getFCB();				// get our own file descriptor
-	fcbArray[returnFd].buf = malloc(sizeof(char)* MAXFCBS);	//allocate memory
+
+    int elem = fdData->directoryElement;
+	DE* tempEntryPtr = malloc(vcb->size_of_block * fdData->dirPointer->d_reclen);
+	LBAread(tempEntryPtr, fdData->dirPointer->d_reclen, fdData->dirPointer->directoryStartLocation);
+
+	fcbArray[returnFd].buf = malloc(tempEntryPtr[elem].size * vcb->size_of_block);	//allocate memory
+    LBAread(fcbArray[returnFd].buf, tempEntryPtr[elem].size, tempEntryPtr[elem].location);
 	fcbArray[returnFd].flagPassed = flags;
 
 	if(fcbArray[returnFd].buf == NULL){		//catch test
-		prinft("Failed to allocate memory");
+		printf("Failed to allocate memory");
 		return - 1;
 	}
 
-	parseData *fdData = parsePath(filename);	//obtain file
-	DE* tempEntryPtr = malloc(vcb->size_of_block * fdData->dirPointer->d_reclen);
-	LBAread(tempEntryPtr, fdData->dirPointer->d_reclen, fdData->dirPointer->directoryStartLocation);
+    
 	fcbArray[returnFd].size_bytes = tempEntryPtr[fdData->directoryElement].size_bytes;
 	
 
 	//get file information.
-	fcbArray[returnFd].d_reclen = fdData->dirPointer->ii->d_reclen;	
-	fcbArray[returnFd].fileType = fdData->dirPointer->ii->fileType;
-	fcbArray[returnFd].d_name == fdData->dirPointer->ii->d_name;
-	fcbArray[returnFd].size_bytes = fdData->directoryElement.
+	fcbArray[returnFd].d_reclen = tempEntryPtr[elem].size;	
+	fcbArray[returnFd].fileType = tempEntryPtr[elem].is_directory;
+	fcbArray[returnFd].d_name == fdData->nameOfLastToken;
+	fcbArray[returnFd].size_bytes = tempEntryPtr[elem].size_bytes;
 	fcbArray[returnFd].currentBlock = 0;
 
 	//To-Do: Free mallocs.
 	free(fdData->dirPointer);
 	free(fdData);
+    free(tempEntryPtr);
 	
 	return (returnFd);
 	} 
@@ -246,25 +260,31 @@ int b_read (b_io_fd fd, char * buffer, int count){
 
 	// check that fd is between 0 and (MAXFCBS-1)
 	if ((fd < 0) || (fd >= MAXFCBS)){
-		return (-1); 					//invalid file descriptor
+		return 0; 					//invalid file descriptor
 	}
 
-	if(!((fcbArray[fd].flagPassed & O_RDONLY) || ( fcbArray[fd].flagPassed & O_RDWR))){
+    int flag = fcbArray[fd].flagPassed;
+	if(!((flag & O_RDONLY == flag) || ( flag & O_RDWR) == flag)){
 		printf("\nb_read ERROR: NO READ OR READ-WRITE FLAG PASSED.\n");
-		return -1;
+		return 0;
 	}
 
-	b_fcb* fcb = fcbArray[fd];
+    printf("About to read file with a count of %d\n", count);
+
+	b_fcb* fcb = &fcbArray[fd];
 	int part1, part2, part3;
 	int blocksToCopy, bytesRead, bytesReturned;
 	
-	int bytesInBuffer = fcbArray[fd].bufLen - fcbArray[fd].bufIndex;
+	int bytesInBuffer = fcbArray[fd].size_bytes - fcbArray[fd].index;
+    printf("Bytes in buffer is %d\n", bytesInBuffer);
+    printf("size_bytes is %d and index is %d\n", fcbArray[fd].size_bytes, fcbArray[fd].index);
 
 	int deliveredBytes = fcbArray[fd].currentBlock * B_CHUNK_SIZE - bytesInBuffer;
-
+    printf("deliveredBytes is %d\n", deliveredBytes);
 	if ((count + deliveredBytes) > fcbArray[fd].size_bytes){
 		count = (fcbArray[fd].size_bytes) - deliveredBytes;
-
+        count = 50;
+        printf("Count + delivered was greater that size, so changed count to %d\n", count);
 		if (count < 0){
 			return -1;
 		}
@@ -272,6 +292,7 @@ int b_read (b_io_fd fd, char * buffer, int count){
 
 	if (count <= bytesInBuffer)
 	{
+        printf("Count was <= bytesInBuffer. Only need part1\n");
 		part1 = count;
 		part2 = 0;
 		part3 = 0;
@@ -280,20 +301,26 @@ int b_read (b_io_fd fd, char * buffer, int count){
 	{
 		part1 = bytesInBuffer;
 		part3 = count - bytesInBuffer;
-		blocksToCopy = part3 / B_CHUNK_SIZE;
+		blocksToCopy = part3 / B_CHUNK_SIZE; 
 		part2 = blocksToCopy * vcb->size_of_block;//mfs_blockSize;
 		part3 = part3 - part2;
+
+        printf("Set part1 to %d, part2 to %d, and part3 to %d\n", part1, part2, part3);
+        printf("blocksToCopy is %d", blocksToCopy);
 	}
 
 
 	if (part1 > 0)
 	{
-		memcpy(buffer, fcbArray[fd].buf + fcbArray[fd].bufIndex, part1);
-		fcbArray[fd].bufIndex += part1;
+		memcpy(buffer, fcbArray[fd].buf + sizeof(DE)*2 + fcbArray[fd].index, part1);
+		fcbArray[fd].index += part1;
+
+        printf("Read part 1. Position is now %d\n", fcbArray[fd].index);
 	}
 
 	if (part2 > 0)
 	{
+        // 
 		bytesRead = LBAread(buffer + part1, blocksToCopy, fcbArray[fd].currentBlock + fcbArray[fd].directoryStartLocation);
 		fcbArray[fd].currentBlock += blocksToCopy;
 		bytesRead = bytesRead * B_CHUNK_SIZE;
@@ -305,7 +332,7 @@ int b_read (b_io_fd fd, char * buffer, int count){
 		bytesRead = LBAread(fcbArray[fd].buf, 1, fcbArray[fd].currentBlock + fcbArray[fd].directoryStartLocation);
 		bytesRead = bytesRead * vcb->size_of_block;
 		fcbArray[fd].currentBlock += 1;
-		fcbArray[fd].bufIndex = 0;
+		fcbArray[fd].index = 0;
 		fcbArray[fd].bufLen = bytesRead;
 		if (bytesRead < part3)
 		{
@@ -315,14 +342,14 @@ int b_read (b_io_fd fd, char * buffer, int count){
 		if (part3 > 0)
 		{
 			
-			memcpy(buffer + part1 + part2, fcbArray[fd].buf + fcbArray[fd].bufIndex, part3);
-			fcbArray[fd].bufIndex += part3;
+			memcpy(buffer + part1 + part2, fcbArray[fd].buf + fcbArray[fd].index, part3);
+			fcbArray[fd].index += part3;
 		}
 	}
 
 	bytesReturned = part1 + part2 + part3;
 
-
+    printf("Read is returning %d\n", bytesReturned);
 	return (bytesReturned); 
 
 }
@@ -330,5 +357,6 @@ int b_read (b_io_fd fd, char * buffer, int count){
 // Interface to Close the file	
 int b_close (b_io_fd fd)
 	{
-
+        b_fcb* file = &fcbArray[fd];
+        free(file->buf);
 	}
