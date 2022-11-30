@@ -33,6 +33,7 @@
 #include <string.h>
 #include "fsLow.h"
 #include "mfs.h" // Can remove this one later, just for test dir
+#include "constants.h"
 
 
 char* int_to_char(int input){
