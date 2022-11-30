@@ -133,8 +133,8 @@ struct new_dir_data* DirectoryInit(DE* parent){
 
     directory[0].size = blocks;
     directory[1].size = blocks;
-    directory[0].size_bytes = sizeof(DE) * blocks;
-    directory[1].size_bytes = sizeof(DE) * blocks;
+    directory[0].size_bytes = total_bytes;
+    directory[1].size_bytes = total_bytes;
     // Set all entries to empty state
     for(int i=0; i < ((directory->size*vcb->size_of_block)/(sizeof(DE))); i++){
         char* name = "\0";
@@ -261,42 +261,58 @@ struct new_dir_data* DirectoryInit(DE* parent){
 
 
 
+
 DE* resize(DE* dir){
+    return addNBlocksToDE(dir, dir->size);
+}
+
+DE* addNBlocksToDE(DE* dir, int extraSize){
 
     // Blocks in new dir
-    int newDirSize = dir->size*2;
+    int newDirSize = dir->size + extraSize;
     int numEntries = ((newDirSize*vcb->size_of_block)/(sizeof(DE)));
     int free_blocks = GetNFreeBlocks(newDirSize);
+    if(free_blocks == -1){
+        printf("Error: Not enough free space for resize.\n");
+        return NULL;
+    }
 
     int old_location = dir->location;
 
-    // Create new directory with twice the space
+    // Create new directory with new size
     DE* newDir = malloc(vcb->size_of_block * newDirSize);
     // Read location of newDIr
     LBAread(newDir, newDirSize, free_blocks);
-    // Initialize data in newDir
-    printf("Init %d entries\n", numEntries);
-    for(int i=0; i < numEntries; i++){
-        char* name = "\0";
-       // directory[i].name[0] = 0;
-       // printf("%d\n", i);
-   
-        strncpy(newDir[i].name, name, MAX_DE_NAME);
-        newDir[i].is_directory = 1;
 
+
+    // Initialize data in newDir if is directory
+    if(dir->is_directory == 1){
+        for(int i=0; i < numEntries; i++){
+            char* name = "\0";
+
+            strncpy(newDir[i].name, name, MAX_DE_NAME);
+            newDir[i].is_directory = 1;
+
+        }
     }
 
     
-
     memcpy(newDir, dir, dir->size * vcb->size_of_block);
+
     // Free up space of old dir
     MarkBlocksFree(dir->location, dir->size);
-    // TODO: Do we need to wipe that space, too?
 
     newDir->location = free_blocks;
     newDir->size = newDirSize;
-    newDir->size_bytes = sizeof(DE) * newDirSize;
+    if(newDir->is_directory == 1){
+        newDir->size_bytes = sizeof(DE) * numEntries;
 
+    }
+    else{
+        newDir->size_bytes = dir->size_bytes;
+    }
+
+    // Update VCB info on root if needed
     if(dir->location == vcb->root_starting_index){
         printf("We're resizing root\n");
         vcb->root_starting_index = newDir->location;
@@ -309,31 +325,43 @@ DE* resize(DE* dir){
 
     
 
-    // Update all children with new location and size of directory
+    
+    // Buffer to help in grabbing info from other DEs
     DE* buf;
-    for(int i = 2; i < numEntries; i++){
-        buf = malloc(2 * vcb->size_of_block);
-        LBAread(buf, 2, newDir[i].location);
 
-        printf("That updated %d, named %s\n", i, buf[1].name);
-        printf("Location and size were %ld and %ld, now ", buf[1].location, buf[1].size);
-        buf[1].location = newDir->location;
-        buf[1].size = newDir->size;
-        buf[1].last_modified = newDir->last_modified;
-        buf[1].size_bytes = newDir->size_bytes;
-        printf("%ld and %ld\n", buf[1].location, buf[1].size);
-        
+    // Update all children with new location and size of directory
+        // Non directories don't need to do this
+    
+    if(dir->is_directory == 1){
+        // Blocks to hold first two DEs
+        int blocksNeeded = (sizeof(DE)*2)/vcb->size_of_block;
+        if (sizeof(DE)*2 % vcb->size_of_block != 0){
+            blocksNeeded++;
+        }
+        for(int i = 2; i < numEntries; i++){
+            buf = malloc(2 * vcb->size_of_block);
+            LBAread(buf, blocksNeeded, newDir[i].location);
 
-        LBAwrite(buf, 2, buf->location);
+            printf("That updated %d, named %s\n", i, buf[1].name);
+            printf("Location and size were %ld and %ld, now ", buf[1].location, buf[1].size);
+            buf[1].location = newDir->location;
+            buf[1].size = newDir->size;
+            buf[1].last_modified = newDir->last_modified;
+            buf[1].size_bytes = newDir->size_bytes;
+            printf("%ld and %ld\n", buf[1].location, buf[1].size);
+            
 
-        
+            LBAwrite(buf, blocksNeeded, buf->location);
 
-        free(buf);
-        buf = NULL;
+            
+
+            free(buf);
+            buf = NULL;
+        }
     }
 
 
-    // If we resized root, then root's [0] entry also needs to know the new info
+    // If we resized root, then root's [1] entry also needs to know the new info
     if(old_location == newDir[1].location){
         
         printf("Root stuff. Location check is %ld\n", newDir[1].location);
@@ -564,6 +592,10 @@ int createFileInDir(DE* dir){
     free(read);
     return ret;
 }
+
+
+
+
 
 void printFilesInDir(DE* dir){
     int skipped = 0;

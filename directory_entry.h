@@ -114,6 +114,19 @@ int createFileInDir(DE* dir);
 int numberFilesInDir(DE* dir);
 
 
+
+
+/*
+    Calls and returns result from addNBlocksToDE with 
+    extraSize = dir size
+    In other words, double the sise of the given DE
+
+    Returns new dir on success, else NULL
+*/
+DE* resize(DE* dir);
+
+
+
 /*
     Reallocates memory for input dir
     Requests new free blocks for new size, and moves
@@ -122,7 +135,7 @@ int numberFilesInDir(DE* dir);
     Returns new dir on success, NULL on fail
 
 */
-DE* resize(DE* dir);
+DE* addNBlocksToDE(DE* dir, int extraSize);
 
 
 
