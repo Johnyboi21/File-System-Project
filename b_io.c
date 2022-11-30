@@ -21,6 +21,8 @@
 #include <fcntl.h>
 #include "b_io.h"
 #include "mfs.h"
+#include "constants.h"
+#include "directory_entry.h"
 
 #define MAXFCBS 20
 #define B_CHUNK_SIZE 512
@@ -32,9 +34,13 @@ typedef struct b_fcb
 	int index;		//holds the current position in the buffer
 	int buflen;		//holds how many valid bytes are in the buffer
 	int individualFilePosition; //keep track where we are in a individual file.
+	int currentBlock;	//holds currentBlock  
+	int size_bytes;	//holds size of entry in bytes
+
 
 	unsigned short d_reclen;    //length of this record 
-    unsigned char fileType;    
+    uint64_t    directoryStartLocation
+    unsigned char fileType;        
     char d_name[256]; 
 	int flagPassed;
 	} b_fcb;
@@ -89,11 +95,17 @@ b_io_fd b_open (char * filename, int flags)
 	}
 
 	parseData *fdData = parsePath(filename);	//obtain file
+	DE* tempEntryPtr = malloc(vcb->size_of_block * fdData->dirPointer->d_reclen);
+	LBAread(tempEntryPtr, fdData->dirPointer->d_reclen, fdData->dirPointer->directoryStartLocation);
+	fcbArray[returnFd].size_bytes = tempEntryPtr[fdData->directoryElement].size_bytes;
+	
 
 	//get file information.
 	fcbArray[returnFd].d_reclen = fdData->dirPointer->ii->d_reclen;	
 	fcbArray[returnFd].fileType = fdData->dirPointer->ii->fileType;
 	fcbArray[returnFd].d_name == fdData->dirPointer->ii->d_name;
+	fcbArray[returnFd].size_bytes = fdData->directoryElement.
+	fcbArray[returnFd].currentBlock = 0;
 
 	//To-Do: Free mallocs.
 	free(fdData->dirPointer);
@@ -170,15 +182,41 @@ int b_write (b_io_fd fd, char * buffer, int count)
 	{
 	if (startup == 0) b_init();  //Initialize our system
 
-	// check that fd is between 0 and (MAXFCBS-1)
-	if ((fd < 0) || (fd >= MAXFCBS))
-		{
-		return (-1); 					//invalid file descriptor
-		}
-		
+    // check that fd is between 0 and (MAXFCBS-1)
+    if ((fd < 0) || (fd >= MAXFCBS)){
+        return (-1);                    //invalid file descriptor
+    }
+
+	//Flag check for write call
+	if(!fcbArray[fd].flagPassed & O_WRONLY){
+		printf("\nb_read ERROR: NO WRITE FLAG PASSED.\n");
+		return -1;
+	}
+    //total bytes written count;
+    int bytesWroteCount = 0;
 	
-		
-	return (0); //Change this
+    while(bytesWroteCount < count){
+        int bytesWritten = 0;
+        if((bytesWroteCount + B_CHUNK_SIZE) > count){
+            bytesWritten = B_CHUNK_SIZE;
+        }
+        else{
+            bytesWritten = (count - bytesWroteCount);
+        }
+
+        //copy user data to our writee buffer.
+        memcpy(fcbArray->buf + (sizeof(DE)*2) + fcbArray->individualFilePosition,
+         buffer + bytesWroteCount, bytesWritten);
+
+        bytesWroteCount += bytesWritten;
+    }
+	//EOF check
+	if(bytesWroteCount + count > fcbArray->size_bytes){;
+		printf("EOF Reached: \n");
+		count = fcbArray->size_bytes - bytesWroteCount + count;
+	}
+
+    return bytesWroteCount;
 	}
 
 
@@ -202,19 +240,92 @@ int b_write (b_io_fd fd, char * buffer, int count)
 //  |             |                                                |        |
 //  | Part1       |  Part 2                                        | Part3  |
 //  +-------------+------------------------------------------------+--------+
-int b_read (b_io_fd fd, char * buffer, int count)
-	{
+int b_read (b_io_fd fd, char * buffer, int count){
 
 	if (startup == 0) b_init();  //Initialize our system
 
 	// check that fd is between 0 and (MAXFCBS-1)
-	if ((fd < 0) || (fd >= MAXFCBS))
-		{
+	if ((fd < 0) || (fd >= MAXFCBS)){
 		return (-1); 					//invalid file descriptor
-		}
-		
-	return (0);	//Change this
 	}
+
+	if(!((fcbArray[fd].flagPassed & O_RDONLY) || ( fcbArray[fd].flagPassed & O_RDWR))){
+		printf("\nb_read ERROR: NO READ OR READ-WRITE FLAG PASSED.\n");
+		return -1;
+	}
+
+	b_fcb* fcb = fcbArray[fd];
+	int part1, part2, part3;
+	int blocksToCopy, bytesRead, bytesReturned;
+	
+	int bytesInBuffer = fcbArray[fd].bufLen - fcbArray[fd].bufIndex;
+
+	int deliveredBytes = fcbArray[fd].currentBlock * B_CHUNK_SIZE - bytesInBuffer;
+
+	if ((count + deliveredBytes) > fcbArray[fd].size_bytes){
+		count = (fcbArray[fd].size_bytes) - deliveredBytes;
+
+		if (count < 0){
+			return -1;
+		}
+	}
+
+	if (count <= bytesInBuffer)
+	{
+		part1 = count;
+		part2 = 0;
+		part3 = 0;
+	}
+	else
+	{
+		part1 = bytesInBuffer;
+		part3 = count - bytesInBuffer;
+		blocksToCopy = part3 / B_CHUNK_SIZE;
+		part2 = blocksToCopy * vcb->size_of_block;//mfs_blockSize;
+		part3 = part3 - part2;
+	}
+
+
+	if (part1 > 0)
+	{
+		memcpy(buffer, fcbArray[fd].buf + fcbArray[fd].bufIndex, part1);
+		fcbArray[fd].bufIndex += part1;
+	}
+
+	if (part2 > 0)
+	{
+		bytesRead = LBAread(buffer + part1, blocksToCopy, fcbArray[fd].currentBlock + fcbArray[fd].directoryStartLocation);
+		fcbArray[fd].currentBlock += blocksToCopy;
+		bytesRead = bytesRead * B_CHUNK_SIZE;
+		part2 = bytesRead;
+	}
+
+	if (part3 > 0)
+	{
+		bytesRead = LBAread(fcbArray[fd].buf, 1, fcbArray[fd].currentBlock + fcbArray[fd].directoryStartLocation);
+		bytesRead = bytesRead * vcb->size_of_block;
+		fcbArray[fd].currentBlock += 1;
+		fcbArray[fd].bufIndex = 0;
+		fcbArray[fd].bufLen = bytesRead;
+		if (bytesRead < part3)
+		{
+			part3 = bytesRead;
+		}
+
+		if (part3 > 0)
+		{
+			
+			memcpy(buffer + part1 + part2, fcbArray[fd].buf + fcbArray[fd].bufIndex, part3);
+			fcbArray[fd].bufIndex += part3;
+		}
+	}
+
+	bytesReturned = part1 + part2 + part3;
+
+
+	return (bytesReturned); 
+
+}
 	
 // Interface to Close the file	
 int b_close (b_io_fd fd)
