@@ -37,6 +37,7 @@ typedef struct b_fcb
 	int individualFilePosition; //keep track where we are in a individual file.
 	int currentBlock;	//holds currentBlock  
 	int size_bytes;	//holds size of entry in bytes
+    int positionInParent; // File's location in parent
 
 
 	unsigned short d_reclen;    //length of this record 
@@ -87,15 +88,50 @@ b_io_fd b_open (char * filename, int flags)
     printf("Opening %s\n", filename);
 	if (startup == 0) b_init();  //Initialize our system
 	parseData *fdData = parsePath(filename);	//obtain file
-    if(fdData->testDirectoryStatus != 2){
+
+
+    // Check if dir given in path
+    if(fdData->testDirectoryStatus == 1){ 
         printf("Error: Target is not a file.\n");
+        free(fdData->dirPointer);
+        free(fdData);
+        return -1;
+    }
+    // If path is valid but last token DNE, create new dir with last token name  
+    else if(fdData->testDirectoryStatus == 0 && fdData->dirPointer != NULL){
+        // Make sure they have the flag before creating
+        if(((flags | O_CREAT) != flags)){
+            printf("Error: File does not exist: No create permission\n");
+            if(fdData->dirPointer != NULL){
+                free(fdData->dirPointer);
+            }
+
+            free(fdData);
+            return -1;
+        }
+        if(createFile(fdData) == 0){
+            printf("Error: Could not create target file.\n");
+            free(fdData->dirPointer);
+            free(fdData);
+            return -1;
+        }
+
+        free(fdData->dirPointer);
+        free(fdData);
+
+        fdData = parsePath(filename);
+        
+    }
+    else if(fdData->testDirectoryStatus != 2){
+        printf("Error: Path was invalid.\n");
+        free(fdData);
         return -1;
     }
 
 
 	
 	b_io_fd returnFd = b_getFCB();				// get our own file descriptor
-
+    printf("Got an fcd of %d\n", returnFd);
     int elem = fdData->directoryElement;
 	DE* tempEntryPtr = malloc(vcb->size_of_block * fdData->dirPointer->d_reclen);
 	LBAread(tempEntryPtr, fdData->dirPointer->d_reclen, fdData->dirPointer->directoryStartLocation);
@@ -119,6 +155,10 @@ b_io_fd b_open (char * filename, int flags)
 	fcbArray[returnFd].d_name == fdData->nameOfLastToken;
 	fcbArray[returnFd].size_bytes = tempEntryPtr[elem].size_bytes;
 	fcbArray[returnFd].currentBlock = 0;
+    fcbArray[returnFd].index = 0;
+    fcbArray[returnFd].bufLen = fcbArray[returnFd].size_bytes;
+    fcbArray[returnFd].directoryStartLocation = tempEntryPtr[elem].location;
+    fcbArray[returnFd].positionInParent = elem;
 
 	//To-Do: Free mallocs.
 	free(fdData->dirPointer);
@@ -208,7 +248,12 @@ int b_write (b_io_fd fd, char * buffer, int count)
 	}
     //total bytes written count;
     int bytesWroteCount = 0;
-	
+
+    b_fcb* file = &fcbArray[fd];
+    int available = vcb->size_of_block * file->d_reclen;
+    available-= (sizeof(DE)*2 + file->size_bytes);
+    
+    printf("Bytes available in file is %d. Trying to write %d\n", available, count);
     while(bytesWroteCount < count){
         int bytesWritten = 0;
         if((bytesWroteCount + B_CHUNK_SIZE) > count){
@@ -219,17 +264,47 @@ int b_write (b_io_fd fd, char * buffer, int count)
         }
 
         //copy user data to our writee buffer.
-        memcpy(fcbArray->buf + (sizeof(DE)*2) + fcbArray->individualFilePosition,
-         buffer + bytesWroteCount, bytesWritten);
+        memcpy(file->buf + (sizeof(DE)*2) + file->individualFilePosition,
+         buffer, count);
 
         bytesWroteCount += bytesWritten;
     }
 	//EOF check
 	if(bytesWroteCount + count > fcbArray->size_bytes){;
 		printf("EOF Reached: \n");
-		count = fcbArray->size_bytes - bytesWroteCount + count;
+		count = file->size_bytes - bytesWroteCount + count;
 	}
 
+
+    /*
+    DE* saveFile = malloc(file->d_reclen * vcb->size_of_block);
+    LBAread(saveFile, file->d_reclen, file->directoryStartLocation);
+    saveFile->size_bytes = file->size_bytes;
+    saveFile->size = file->size_bytes;
+    time_t time_mod = time(0);
+    saveFile->last_modified = time_mod;
+    */
+    
+
+    DE* saveFile = (DE*)file->buf;
+    saveFile->size_bytes = 22;
+    saveFile->size = file->d_reclen;
+    time_t time_mod = time(0);
+    saveFile->last_modified = time_mod;
+
+    // Update parent with new info of file
+    DE* parent = malloc(saveFile[1].size * vcb->size_of_block);
+    LBAread(parent, saveFile[1].size, saveFile[1].location);
+    parent[file->positionInParent].size_bytes = saveFile->size_bytes;
+    parent[file->positionInParent].size = saveFile->size;
+    parent[file->positionInParent].location = saveFile->location;
+    parent[file->positionInParent].last_modified = time_mod;
+    printf("Writing %d blocks to %d\n", file->d_reclen, file->directoryStartLocation);
+    LBAwrite(parent, parent->size, parent->location);
+    LBAwrite(saveFile, file->d_reclen, file->directoryStartLocation);
+    
+    free(parent);
+    printf("Wrote %d\n", 22);
     return bytesWroteCount;
 	}
 
@@ -306,12 +381,13 @@ int b_read (b_io_fd fd, char * buffer, int count){
 		part3 = part3 - part2;
 
         printf("Set part1 to %d, part2 to %d, and part3 to %d\n", part1, part2, part3);
-        printf("blocksToCopy is %d", blocksToCopy);
+        printf("blocksToCopy is %d\n", blocksToCopy);
 	}
 
 
 	if (part1 > 0)
 	{
+        printf("Read starting with offset %ld. Reading %d bytes.\n", (sizeof(DE)*2 + fcbArray[fd].index), part1);
 		memcpy(buffer, fcbArray[fd].buf + sizeof(DE)*2 + fcbArray[fd].index, part1);
 		fcbArray[fd].index += part1;
 
@@ -357,6 +433,17 @@ int b_read (b_io_fd fd, char * buffer, int count){
 // Interface to Close the file	
 int b_close (b_io_fd fd)
 	{
+        if(fd < 0 || fd >= MAXFCBS){
+            return -1;
+        }
+
         b_fcb* file = &fcbArray[fd];
-        free(file->buf);
+        if (file->buf != NULL){
+           free(file->buf);
+        }
+
+        file->buf = NULL;
+
+
+        return 1;
 	}

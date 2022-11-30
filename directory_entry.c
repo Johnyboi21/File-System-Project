@@ -245,7 +245,6 @@ struct new_dir_data* DirectoryInit(DE* parent){
 
     printf("Writing %d blocks to location %d\n", blocks, free_blocks);
     uint64_t write = LBAwrite(directory, blocks, free_blocks);
-    printf("FInished that write\n");
     LBAread(directory, directory[0].size, directory[0].location); // Refresh parent after changes
 
     free(directory);
@@ -501,6 +500,106 @@ void initTestDirs(){
 }
 
 
+/*
+    Creates a file with parent and data specified by input parseData*
+
+    For a file that isn't a directory, note:
+        1. It is created with just enough space for '.' and '..'
+            - So it has info on itself and parent
+        2. size_bytes reflects the content size, so it will ignore the size
+        from '.' and '..'
+            - This means we are always offset by sizeof(DE)*2 bytes when reading/writing
+*/
+
+int createFile(parseData* data){
+    DE* parent = malloc(data->dirPointer->d_reclen * vcb->size_of_block);
+    LBAread(parent, data->dirPointer->d_reclen, data->dirPointer->directoryStartLocation);
+    
+    // FInd location in parent to put new file
+    int index = findEmptyEntry(parent);
+    if (index == -1){
+        printf("Failed to find space for new file. Attempting to resize\n");
+
+        parent = resize(parent);
+        printf("Parent size is now %d\n", parent->size);
+
+        if(parent == NULL){
+            printf("Resize failed. Could not create file.\n");
+            return 0;
+        }
+
+        index = findEmptyEntry(parent);
+        
+    }
+
+    // Calculate blocks needed for file
+    int blocks = sizeof(DE)*2 / vcb->size_of_block;
+    if((sizeof(DE) * 2) % vcb->size_of_block != 0){
+        blocks++;
+    }
+
+
+    int free_blocks = GetNFreeBlocks(blocks);
+    if(free_blocks == -1){
+        printf("Failed to find enough free bliocks for new file\n");
+        return 0;
+    }
+
+
+    
+    time_t create_time = time(0);
+
+    // Init with space for . and ..
+    DE* new_file = malloc(blocks * vcb->size_of_block);
+    LBAread(new_file, blocks, free_blocks);
+
+    // Set data for file
+        // Note size_bytes is 0 when we have sizeof(DE)*2 bytes
+        // This helps track file position. Always offset by sizeof(DE)*2
+    new_file->size_bytes = 0;
+    new_file->size = blocks;
+    new_file->is_directory = 0;
+    new_file->location = free_blocks;
+
+    new_file->creation_date = create_time;
+    new_file->last_modified = create_time;
+    strncpy(new_file->name, ".\0", MAX_DE_NAME);
+
+
+    strncpy(new_file[1].name, "..\0", MAX_DE_NAME);
+    new_file[1].location = parent->location;
+    new_file[1].is_directory = 1;
+    new_file[1].size = parent->size;
+    new_file[1].size_bytes = parent->size_bytes;
+    new_file[1].creation_date = parent->creation_date;
+    new_file[1].last_modified = parent->last_modified;
+
+
+
+    // Fill parent with data on new file
+    parent[index].size = new_file->size;
+    parent[index].is_directory = 0;
+    parent[index].location = free_blocks;
+    parent[index].last_modified = new_file->last_modified;
+    parent[index].creation_date = new_file->creation_date;
+
+
+    // Set new name of file
+    char* filename = data->nameOfLastToken;
+    strncpy(parent[index].name, filename, MAX_DE_NAME);
+
+
+    // Write changes
+    LBAwrite(parent, parent->size, parent->location);
+    LBAwrite(new_file, blocks, free_blocks);
+
+
+
+    free(new_file);
+    free(parent);
+}
+
+
 int createFileInDir(DE* dir){
     int ret = 1;
     
@@ -562,7 +661,7 @@ int createFileInDir(DE* dir){
 
     char* file_content = malloc(50);
 
-    char* text = "Here is a test message for files of 50 characters\0";
+    char* text = "Here is a test message for files of 50 characters.";
 
     
 

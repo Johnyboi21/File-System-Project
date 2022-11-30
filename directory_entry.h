@@ -26,6 +26,7 @@
 
 #include <time.h>
 #include <stdint.h>
+#include "mfs.h"
 //const int size_of_block = 512;
 typedef struct DE{
 	char name[256];             // Name of file
@@ -143,3 +144,11 @@ char* int_to_char(int input);
 
 
 int appendDEtoDir(DE* fileParent, int index, DE* dir, DE* file);
+
+
+/* Create a file with data from parsePath
+    Data is obtained with parsePath in b_open
+
+    Returns 1 on success, else 0
+*/
+int createFile(parseData* data);

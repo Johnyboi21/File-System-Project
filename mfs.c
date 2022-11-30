@@ -153,6 +153,50 @@ int fs_rmdir(const char *pathname){
     return is_success;
 };
 
+/*
+Conditions:
+    1.)A file has to exist.
+
+Steps:
+    1.)Find file that exists & want to delete
+    2.)Mark the blocks that the file was using as free
+    3.)Set file to null
+    4.)Mark the directory entry as unused.
+
+
+
+*/
+int fs_delete(char* filename){      //removes a file
+
+    parseData *deleteFileData = parsePath(filename);
+    deleteFileData->dirPointer;
+    //Test if file is actually a file.
+    if(fs_isFile(filename) != 1){
+        printf("This is not a file\n");
+        return -1;
+    }
+    //Check if filename exists
+    if((deleteFileData->dirPointer->ii->d_name) == filename){
+        //Mark blocks that the file was using as free.
+        MarkBlocksFree(deleteFileData->dirPointer->ii->d_reclen, sizeof(filename));
+        //deleteFileData->dirPointer->ii->d_reclen = 0;
+        //Set file to null
+        filename == NULL;
+        //Mark directory entry as unused
+        deleteFileData->directoryElement = 0;
+
+    }
+    else{
+        printf("File name does  not exist\n");
+        return -1;
+    }
+    printf("File was deleted from the system\n");
+
+    free(deleteFileData);
+    return 0;
+
+};	
+
 // Directory iteration functions
 fdDir * fs_opendir(const char *pathname){
     char* path = malloc(MAX_PATH_LENGTH);
@@ -525,23 +569,6 @@ int fs_isDir(char * pathname){      //return 1 if directory, 0 otherwise
 }
 	
 
-/*
-Conditions:
-    1.)A file has to exist.
-
-Steps:
-    1.)Find file that exists & want to delete
-    2.)Mark the blocks that the file was using as free
-    3.)Set file to null
-    4.)Mark the directory entry as unused.
-
-
-
-*/
-int fs_delete(char* filename){      //removes a file
-
-
-};	
 
 
 
@@ -594,8 +621,6 @@ relative -> get current working directory.
 
 */
 struct parseData *parsePath(const char *pathname){
-    //30 Blocks i.e 30 * 512 (1 block is 512 bytes)
-
     // Allocate buffer at root's size
         // This size may not match other directories. Will resize if needed
     DE* dirBuffer = malloc(vcb->root_size * vcb->size_of_block);
@@ -618,22 +643,18 @@ struct parseData *parsePath(const char *pathname){
     char* pathBuffer = malloc(MAX_PATH_LENGTH);
     
     //here for identification of absolute or relative
+    // Starting at root, absolute path
     if(pathname[0] == '/'){
-     //   printf("Start at root\n");
         LBAread(dirBuffer, vcb->root_size, vcb->root_starting_index);
-     //   printFilesInDir(dirBuffer);
 
         
     }
+    // Relative path
     else{
-    //    printf("Apparently it's relative. The path is %s\n", pathname);
-      //  printf("Relative path. CWD is %s\n", current_working_dir);
-     //   printf("Going to go through with %s", fs_getcwd(pathBuffer, MAX_PATH_LENGTH));
+        // Use CWD to construct the absolute path from the relative path
         parseData* relativeData = parsePath(fs_getcwd(pathBuffer, MAX_PATH_LENGTH));
         
         LBAread(dirBuffer, relativeData->dirPointer->d_reclen, relativeData->dirPointer->directoryStartLocation);
-        //printf("Finished reading relative.\n");
-     //   printFilesInDir(dirBuffer);
 
         
         free(relativeData->dirPointer);
@@ -644,7 +665,7 @@ struct parseData *parsePath(const char *pathname){
     /*
     after our initial / root recognition.
     copy the rest of our pathname array "string"
-    to our variable a.
+    to our buffer.
     */
 
     strncpy(pathBuffer, pathname, MAX_PATH_LENGTH);
@@ -667,14 +688,13 @@ struct parseData *parsePath(const char *pathname){
     the next string which would be B after that delim is found.
     */
     char* next_element = strtok(NULL, delim);
-//    printf("Next token is %s\n", next_element);
 
     
     int indexOfSearch = -1;
     
     // Check first element in path
     if(current_element != NULL){
-        strncpy(data->nameOfLastToken, current_element, 256);
+        strncpy(data->nameOfLastToken, current_element, MAX_DE_NAME);
 
         indexOfSearch = findFileInDirectory(dirBuffer, current_element);
 
@@ -693,7 +713,6 @@ struct parseData *parsePath(const char *pathname){
             else{
                 // If it wasn't a directory and it's the last elem, then must be a file
                 if(next_element == NULL){
-   //                 printf("Last element is a file\n");
 
                     data->testDirectoryStatus = 2;
                     data->directoryElement = indexOfSearch;
@@ -701,16 +720,14 @@ struct parseData *parsePath(const char *pathname){
             }
         }
         else{
-    //        printf("Found element in path that does not exist\n");
-
             // If we aren't at the last element when we find something that doesn't exist, 
                 // path is invalid
             if(next_element == NULL){
    //             printf("Last element does not exist. If you're mkdir, this is good\n");
             }
             else{
-                printf("Error: Path was invalid.\n");
                 // Prevents us from giving dir info if path invalid
+                free(dirBuffer);
                 dirBuffer = NULL; 
             }
         }
@@ -726,27 +743,20 @@ struct parseData *parsePath(const char *pathname){
     // Check the rest of the elements in the path, if they exist
         // Mostly duplicated from above, except while condition
     while(next_element != NULL && dirBuffer != NULL){
-  //      printf("In the while\n");
         current_element = next_element;
         strncpy(data->nameOfLastToken, current_element, 256);
 
-//        printf("Current token is now %s\n", current_element);
 
         // Find index of this file
         indexOfSearch = findFileInDirectory(dirBuffer, current_element);
- //       printf("Found that element at %d\n", indexOfSearch);
 
-        //printf("%s\n", next_element);
         next_element = strtok(NULL,delim);
-   //     printf("Next token is %s\n", next_element);
 
         // If file exists
         if(indexOfSearch != -1){
             // If it's a directory, we want to read into our dirBuffer
             if(dirBuffer[indexOfSearch].is_directory == 1){
                 LBAread(dirBuffer, dirBuffer[indexOfSearch].size, dirBuffer[indexOfSearch].location);
- //               printf("\n\nNew directory is: \n");
-            //    printFilesInDir(dirBuffer);
 
                 // If this is the last element of the path, we ended in a directory
                 if(next_element == NULL){
@@ -767,8 +777,6 @@ struct parseData *parsePath(const char *pathname){
             }
         }
         else{
-  //          printf("Found element in path that does not exist\n");
-
             // If we aren't at the last element when we find something that doesn't exist, 
                 // path is invalid
             if(next_element == NULL){
@@ -776,8 +784,8 @@ struct parseData *parsePath(const char *pathname){
 
             }
             else{
-                printf("Error: Path was invalid.\n");
                 // Prevents us from giving dir info if path invalid
+                free(dirBuffer);
                 dirBuffer = NULL; 
             }
             break;
@@ -801,13 +809,7 @@ struct parseData *parsePath(const char *pathname){
 
     }
 
-  //  printf("Last token read was %s\n", data->nameOfLastToken);
-    
-    /*
-    Why do we want to know this?
-    If we want to create a new directory E, we need a previous directory 
-    to locate and create e within.
-    */
+
     free(pathBuffer);
     free(dirBuffer);
 
@@ -861,7 +863,7 @@ int fs_move(char* src, char* dest){
         // Use the parent to get the child file
     // If path was dir, then use child to get parent
     if(source->testDirectoryStatus == 2){
-        printf("Thing to move was not a directory. Parent is size %ld and is at %ld\n", source->dirPointer->d_reclen, source->dirPointer->directoryStartLocation);
+        printf("Thing to move was not a directory. Parent is size %d and is at %ld\n", source->dirPointer->d_reclen, source->dirPointer->directoryStartLocation);
         fileParent = malloc(source->dirPointer->d_reclen * vcb->size_of_block);
         LBAread(fileParent, source->dirPointer->d_reclen, source->dirPointer->directoryStartLocation);
         file = malloc(fileParent[source->directoryElement].size * vcb->size_of_block);
