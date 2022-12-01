@@ -133,7 +133,7 @@ int fs_rmdir(const char *pathname){
             MarkBlocksFree(dir[dir_info->directoryElement].location, dir[dir_info->directoryElement].size);
 
             LBAwrite(dir, dir[0].size, dir[0].location);      
-  
+
         }
         else{
             printf("Could not remove directory: Directory was not empty.\n");
@@ -162,39 +162,46 @@ Steps:
     2.)Mark the blocks that the file was using as free
     3.)Set file to null
     4.)Mark the directory entry as unused.
-
-
-
 */
 int fs_delete(char* filename){      //removes a file
 
     parseData *deleteFileData = parsePath(filename);
-    deleteFileData->dirPointer;
-    //Test if file is actually a file.
-    if(fs_isFile(filename) != 1){
-        printf("This is not a file\n");
-        return -1;
-    }
-    //Check if filename exists
-    if((deleteFileData->dirPointer->ii->d_name) == filename){
+
+    int filePosition = deleteFileData->directoryElement; //gives me position where file is at.
+
+    int specificElement = deleteFileData->directoryElement;
+    DE *tempCheck = malloc(vcb->size_of_block * deleteFileData->dirPointer->d_reclen);
+    
+    
+    
+       // deleteFileData->dirPointer->d_reclen //give me size of current directory file is in.
+
+        //read parent directory.
+        LBAread(tempCheck, deleteFileData->dirPointer->d_reclen,
+         deleteFileData->dirPointer->directoryStartLocation);
+
+
+        char* name2 = "\0";
+        strncpy(tempCheck[filePosition].name, name2, 256);
+
+        
         //Mark blocks that the file was using as free.
-        MarkBlocksFree(deleteFileData->dirPointer->ii->d_reclen, sizeof(filename));
-        //deleteFileData->dirPointer->ii->d_reclen = 0;
+        MarkBlocksFree(filePosition,tempCheck[filePosition].size);
+
         //Set file to null
-        filename == NULL;
+
+
+        LBAwrite(tempCheck, deleteFileData->dirPointer->d_reclen,
+         deleteFileData->dirPointer->directoryStartLocation);
+
         //Mark directory entry as unused
-        deleteFileData->directoryElement = 0;
+        //deleteFileData->directoryElement = 0;
 
-    }
-    else{
-        printf("File name does  not exist\n");
-        return -1;
-    }
-    printf("File was deleted from the system\n");
+        printf("File was deleted from the system\n");
 
-    free(deleteFileData);
-    return 0;
-
+        free(deleteFileData);
+        free(tempCheck);
+        return 0;
 };	
 
 // Directory iteration functions
