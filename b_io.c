@@ -136,19 +136,22 @@ b_io_fd b_open (char * filename, int flags)
 
 	
 	b_io_fd returnFd = b_getFCB();				// get our own file descriptor
+    //Element of file within parent
     int elem = fdData->directoryElement;
+    //Ptr to parent dir
 	DE* tempEntryPtr = malloc(vcb->size_of_block * fdData->dirPointer->d_reclen);
 	LBAread(tempEntryPtr, fdData->dirPointer->d_reclen, fdData->dirPointer->directoryStartLocation);
-
+    
+    //Malloc enough space to fit file in buffer
 	fcbArray[returnFd].buf = malloc(tempEntryPtr[elem].size * vcb->size_of_block);	//allocate memory
-    LBAread(fcbArray[returnFd].buf, tempEntryPtr[elem].size, tempEntryPtr[elem].location);
-	fcbArray[returnFd].flagPassed = flags;
 
-	if(fcbArray[returnFd].buf == NULL){		//catch test
+    if(fcbArray[returnFd].buf == NULL){		//catch test
 		printf("Failed to allocate memory");
 		return - 1;
 	}
-
+    //Read  from that element into the buffer
+    LBAread(fcbArray[returnFd].buf, tempEntryPtr[elem].size, tempEntryPtr[elem].location);
+	fcbArray[returnFd].flagPassed = flags;
     
 	fcbArray[returnFd].size_bytes = tempEntryPtr[fdData->directoryElement].size_bytes;
 	
