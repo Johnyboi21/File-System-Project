@@ -16,7 +16,9 @@
 *
 * File: mfs.c
 *
-* Description: To be updated... 
+* Description: Implementation of basic file system 
+    commands from mfs.h. The driver uses these to 
+    interact with the system
 *
 **************************************************************/
 #include <sys/types.h>
@@ -99,7 +101,6 @@ int fs_rmdir(const char *pathname){
     DE* dir = malloc(vcb->root_size*vcb->size_of_block);
     int is_success = 1;
 
-    printf("********Trying to remove: %s\n", pathname);
     
     if(dir == NULL){
         printf("rmdir failed to allocate memory.\n");
@@ -107,9 +108,7 @@ int fs_rmdir(const char *pathname){
     }
 
     parseData* dir_info = parsePath(pathname);
-    // TODO check NULL pointer on these, and do it before malloc in case we need to exit
 
-    printf("Test status is %d\n", dir_info->testDirectoryStatus);
     if(dir_info->testDirectoryStatus != 1){
         printf("Path was not a directory\n");
         is_success = 0;
@@ -124,7 +123,6 @@ int fs_rmdir(const char *pathname){
             
             // Move to parent 
             LBAread(dir, dir[1].size, dir[1].location);
-            printf("Dir was empty. Removing dir named %s\n", dir[dir_info->directoryElement].name);
 
             char* name = "\0";
             strncpy(dir[dir_info->directoryElement].name, name, 256);
@@ -133,7 +131,7 @@ int fs_rmdir(const char *pathname){
             MarkBlocksFree(dir[dir_info->directoryElement].location, dir[dir_info->directoryElement].size);
 
             LBAwrite(dir, dir[0].size, dir[0].location);      
-
+  
         }
         else{
             printf("Could not remove directory: Directory was not empty.\n");
@@ -197,7 +195,6 @@ int fs_delete(char* filename){      //removes a file
         //Mark directory entry as unused
         //deleteFileData->directoryElement = 0;
 
-        printf("File was deleted from the system\n");
 
         free(deleteFileData);
         free(tempCheck);
@@ -225,10 +222,20 @@ fdDir * fs_opendir(const char *pathname){
 
     // Make a copy of fdDir in parsed_data
     fdDir* fdPtr = malloc(sizeof(fdDir));
+    if(fdPtr == NULL){
+        printf("Error: Failed to allocate memory\n");
+
+        return NULL;
+    }
     fdPtr->directoryStartLocation = directoryPtr->location;
     fdPtr->d_reclen = directoryPtr->size;
     fdPtr->dirEntryPosition = 0;
     fdPtr->ii = malloc(sizeof(struct fs_diriteminfo));
+    if(fdPtr->ii == NULL){
+        printf("Error: Failed to allocate memory\n");
+
+        return NULL;
+    }
     
     //free stuff
     free(parsed_data->dirPointer);
@@ -236,13 +243,6 @@ fdDir * fs_opendir(const char *pathname){
     free(directoryPtr);
     free(path);
 
-    /**
-     * REMEMBER TOO FREE 
-     *  directoryPtr
-     *  fdPtr
-    */
-
-    printf("FInished in open\n");
     return fdPtr;
 };
 
@@ -254,11 +254,17 @@ struct fs_diriteminfo *fs_readdir(fdDir *dirp){
     DE* directory = malloc(dirp->d_reclen * vcb->size_of_block);
     LBAread(directory, dirp->d_reclen, dirp->directoryStartLocation);
 
+    // Needs to be freed from previous call before updating with new info
     free(dirp->ii);
     dirp->ii = NULL;
     dirp->ii = malloc(sizeof(struct fs_diriteminfo));
+    if(dirp->ii == NULL){
+        printf("Error: Failed to allocate memory\n");
+
+        return NULL;
+    }
     for(int i = dirp->dirEntryPosition; i < ((directory->size*vcb->size_of_block)/(sizeof(DE))); i++){
-   //     printf("Before compare, name is %ld\n", strlen(directory[i].name));
+        // Check all but empty dirs
         if(strcmp(directory[i].name, "\0") != 0){
             strncpy(dirp->ii->d_name, directory[i].name, MAX_DE_NAME);
             dirp->ii->fileType = directory[i].is_directory; //have something to tell you file type
@@ -281,8 +287,6 @@ struct fs_diriteminfo *fs_readdir(fdDir *dirp){
 int fs_closedir(fdDir *dirp){
     free(dirp->ii);
     free(dirp);
-
-    printf("Closed, should have freed\n");
 
     return 1;
 };
@@ -335,9 +339,7 @@ int countPathTokens(char* pathname){
 */
 
 char* formatPath(char *pathname){
-  //  printf("Formatting %s\n", pathname);
     int numTokens = countPathTokens(pathname);
-   // printf("It has %d tokens\n", numTokens);
 
     /* 
         Array of char to track which tokens should be in final path
@@ -359,16 +361,22 @@ char* formatPath(char *pathname){
     // Return path to be manipulated
         // In the end, will represent an absolute path
     char* newPath = malloc(MAX_PATH_LENGTH);
+    if(newPath == NULL){
+        printf("Error: Failed to allocate memory\n");
+
+        return NULL;
+    }
     newPath[0] = '/';
     newPath[1] = '\0';
     int pathOffset = 1; // Offset from start of newPath
+        // Set to overwrite null char
 
     // Copy of path to gather tokens from
     char* pathCopy = malloc(MAX_PATH_LENGTH);
     strncpy(pathCopy, pathname, MAX_PATH_LENGTH);
     
     if(pathname[0] != '/'){
-        printf("Formatting relative\n");
+      //  printf("Formatting relative\n");
     }
 
     char* currentToken = strtok(pathCopy, "/");
@@ -428,10 +436,8 @@ char* formatPath(char *pathname){
         Adds ith token to path if ith entry in tokenTracker == 1
     */
     while(currentToken != NULL){
-     //   printf("Looking at string %s, %d\n", currentToken, tokenIter);
         if(tokenTracker[tokenIter] == 1){
-        //    newPath[pathOffset] = '/';
-          //  pathOffset++;
+  
             strncpy(newPath+pathOffset, currentToken, MAX_PATH_LENGTH-pathOffset);
             // Note that token contains null char, which we copy, yet path offset increment 
                 // does not include it. We'll overwrite that null char on each copy
@@ -442,7 +448,6 @@ char* formatPath(char *pathname){
             newPath[pathOffset+1] = '\0';
             pathOffset++;
 
-//            printf("Added %dth entry, which was %s. Path is now %s\n", tokenIter, currentToken, newPath);
         }
         
 
@@ -471,7 +476,6 @@ int fs_setcwd(char *pathname){       //linux chdir
     int ret_val = 0;
     int is_relative = 0;
 
-    printf("Coming into set cwd with %s\n", pathname);
     
     if(data->testDirectoryStatus == 2){
         printf("Error: Not a directory\n");
@@ -488,13 +492,16 @@ int fs_setcwd(char *pathname){       //linux chdir
 
         // Handle relative or absolute
         if(pathname[0] != '/'){
-            printf("CD with relative\n");
 
             // Get CWD
             char* cwd = malloc(MAX_PATH_LENGTH);
+            if(cwd == NULL){
+                printf("Error: Failed to allocate memory\n");
+
+                return -1;
+            }
             fs_getcwd(cwd, MAX_PATH_LENGTH);
 
-            printf("CWD is %s\n", cwd);
 
             // Add cwd to path, then tack on the relative path after it
                 // Redundancy for clarity. Imagine starting at 0 and rebuilding
@@ -522,7 +529,6 @@ int fs_setcwd(char *pathname){       //linux chdir
         free(newPath);
         newPath = NULL;
         
-        printf("Changed cwd to %s\n", current_working_dir);
 
     }
 
@@ -536,14 +542,17 @@ int fs_setcwd(char *pathname){       //linux chdir
 int fs_isFile(char * filename){     //return 1 if file, 0 otherwise
     int isFileValue = 0;
     parseData *isFileData = parsePath(filename);
+    if(isFileData == NULL){
+        printf("Error: Failed to allocate memory\n");
+
+        return 0;
+    }
 
     if(isFileData->testDirectoryStatus == 2){
-        printf("This is a file\n");
         isFileValue = 1;    //This is a file
         
     }
     else{
-        printf("This is not a file\n");
         isFileValue = 0;    //Not a file
         
     }
@@ -557,6 +566,11 @@ int fs_isFile(char * filename){     //return 1 if file, 0 otherwise
 int fs_isDir(char * pathname){      //return 1 if directory, 0 otherwise
     int isDirRet = 0;
     parseData *isDirData = parsePath(pathname);
+    if(isDirData == NULL){
+        printf("Error: Failed to allocate memory\n");
+
+        return 0;
+    }
 
     if(isDirData->testDirectoryStatus == 1){
       //  printf("This is a directory\n");
@@ -583,7 +597,6 @@ int fs_stat(const char* pathname, struct fs_stat* buf){
     char* path = malloc(MAX_PATH_LENGTH);
     strncpy(path, pathname, MAX_PATH_LENGTH);
 
-   // if(fs_isDir(path) == 0){ printf("\nfs_stat ERROR: Pathname %s Isn't a Directory\n", pathname); return -1; }
     parseData* parsed_data = parsePath(path);
 
     DE* directory = malloc(parsed_data->dirPointer->d_reclen * vcb->size_of_block);
@@ -643,11 +656,15 @@ struct parseData *parsePath(const char *pathname){
 
 
     if(pathname[0] == '\0'){
-        printf("Empty path\n");
         isEmptyPath = 1;
     }
 
     char* pathBuffer = malloc(MAX_PATH_LENGTH);
+    if(pathBuffer == NULL){
+        printf("Error: Failed to allocate memory\n");
+
+        return NULL;
+    }
     
     //here for identification of absolute or relative
     // Starting at root, absolute path
@@ -832,12 +849,11 @@ struct parseData *parsePath(const char *pathname){
 */
 
 int fs_move(char* src, char* dest){
-    printf("Move called with %s and %s\n", src, dest);
 
     parseData* source = parsePath(src);
 
     if(source->testDirectoryStatus == 0){
-        printf("Source to move does not exist.\n");
+        printf("Error: Source to move does not exist.\n");
         free(source->dirPointer);
         free(source);
 
@@ -847,7 +863,7 @@ int fs_move(char* src, char* dest){
     parseData* destination = parsePath(dest);
 
     if(destination->testDirectoryStatus != 1){
-        printf("Destination is invalid.\n");
+        printf("Error: Destination is invalid.\n");
 
         free(source->dirPointer);
         free(source);
@@ -856,10 +872,6 @@ int fs_move(char* src, char* dest){
 
         return -1;
     }
-
-    printf("Source is element %d of its parent.\n", source->directoryElement);
-    printf("Destination is size %d\n",destination->dirPointer->d_reclen);
-
 
     
 
@@ -870,16 +882,15 @@ int fs_move(char* src, char* dest){
         // Use the parent to get the child file
     // If path was dir, then use child to get parent
     if(source->testDirectoryStatus == 2){
-        printf("Thing to move was not a directory. Parent is size %d and is at %ld\n", source->dirPointer->d_reclen, source->dirPointer->directoryStartLocation);
         fileParent = malloc(source->dirPointer->d_reclen * vcb->size_of_block);
         LBAread(fileParent, source->dirPointer->d_reclen, source->dirPointer->directoryStartLocation);
         file = malloc(fileParent[source->directoryElement].size * vcb->size_of_block);
         if(file == NULL){
-            printf("Failed to allocated memory\n");
+            return -1;
         }
         LBAread(file, fileParent[source->directoryElement].size, fileParent[source->directoryElement].location);
-        printf("Read the file\n");
     }
+    
     else if(source->testDirectoryStatus == 1){
         file = malloc(source->dirPointer->d_reclen * vcb->size_of_block);
         LBAread(file, source->dirPointer->d_reclen, source->dirPointer->directoryStartLocation);
@@ -894,12 +905,6 @@ int fs_move(char* src, char* dest){
     LBAread(dir, destination->dirPointer->d_reclen, destination->dirPointer->directoryStartLocation);
 
     
-
-    printf("File's location is %ld\n", file[1].location);
-    printf("The file's location and size of parent is %ld and %ld\n", file[1].size, file[1].location);
-    printf("Compare that to size and location of root, %ld and %ld\n", vcb->root_size, vcb->root_starting_index);
-    printf("The parent's info on itself is size %ld and location %ld\n", fileParent->size, fileParent->location);
-
     int res = appendDEtoDir(fileParent, source->directoryElement, dir, file);
 
     if(res != 2){
@@ -935,9 +940,8 @@ int appendDEtoDir(DE* fileParent, int index, DE* dir, DE* file){
     int dest = findEmptyEntry(dir);
     int ret = 1;
 
-    printf("Found free space at %d\n", dest);
+    // DE was full, resize
     if(dest == -1){
-        printf("That means it was full, so resize now.\n");
 
         dir = resize(dir);
 
@@ -946,7 +950,6 @@ int appendDEtoDir(DE* fileParent, int index, DE* dir, DE* file){
         dest = findEmptyEntry(dir);
     }
 
-    printf("Again, that free spot is %d\n", dest);
 
     dir[dest].location = fileParent[index].location;
     strncpy(dir[dest].name, fileParent[index].name, MAX_DE_NAME);
@@ -961,8 +964,7 @@ int appendDEtoDir(DE* fileParent, int index, DE* dir, DE* file){
     file[1].size = dir->size;
     file[1].size_bytes = dir->size_bytes;
 
-    printf("The name there is now %s\n", dir[dest].name);
-   // printf("To confirm it was added, we now have %s at %d\n", file->name, findFileInDirectory(dir, file->name));
+
 
 
     LBAwrite(dir, dir->size, dir->location);

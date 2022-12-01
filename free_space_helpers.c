@@ -76,16 +76,13 @@ int GetNFreeBlocks(int blocks){
         // Find 4 blocks
     
     while(cont_blocks_found < blocks && start_pos < vcb->number_of_blocks){
-        printf("Checking starting from %d\n", start_pos);
         for(int i = 0; i < blocks; i++){
             possible_block = GetFreeBlock(start_pos);
-            printf("Free? At %d\n", possible_block);
             if(last_free == -1){
                 last_free = possible_block - 1;
             }
 
             if(possible_block == -1 || possible_block != last_free+1){   // Did not find N contiguous free
-                printf("Failed to find that many blocks. Last free was %d and we got %d \n", last_free, possible_block);
 
                 MarkBlocksFree(free_blocks_start, cont_blocks_found);
                 free_blocks_start = -1;
@@ -99,7 +96,6 @@ int GetNFreeBlocks(int blocks){
                 }
                 last_free = possible_block;
                 cont_blocks_found++;
-                printf("Found %d\n", cont_blocks_found);
                 start_pos = possible_block/8;   // Start searching from that byte next time
                 MarkOneBlockUsed(possible_block);
             }
@@ -108,7 +104,6 @@ int GetNFreeBlocks(int blocks){
 
     }
 
-    printf("Marked %d blocks used. Now %ld total blocks.\n", cont_blocks_found, vcb->blocks_available);
     return free_blocks_start; 
 }
 
@@ -161,7 +156,6 @@ int MarkBlocksUsed(int start, int size){
     Returns: number of marked blocks
 */
 int MarkOneBlockUsed(int block){
-   // int arr[1] = {block};
     
     return MarkBlocksUsed(block, 1);
 }
@@ -196,6 +190,5 @@ int MarkBlocksFree(int start, int size){
     vcb->blocks_available = vcb->blocks_available + marked;
 
 
-    printf("Marked %d blocks free. Now %ld total blocks.\n", size, vcb->blocks_available);
     return marked;
 }

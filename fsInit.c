@@ -64,7 +64,6 @@ typedef struct Directory{
 
 void printVCB();
 void initBitmap();
-void initRootDir();
 //int getFreeBlock();
 
 
@@ -121,25 +120,14 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
         root_size = root_size/vcb->size_of_block;
         vcb->root_size = root_size;
 
-        printf("\nMade root! Size is %d\n", root_size);
-
 
         LBAwrite(vcb, 1, 0);
         
         int i = GetFreeBlock(0);
-        printf("First free block is now at %d\n", i);
 
        // initTestDirs();
 
         printVCB();
-
-
-        DE* r = malloc(vcb->root_size * vcb->size_of_block);
-        LBAread(r, vcb->root_size, vcb->root_starting_index);
-        
-        createFileInDir(r);
-
-        free(r);
         
 
         
@@ -198,7 +186,6 @@ void initBitmap(){
     GetNFreeBlocks(blocks);
 
 	//step d of free space
-    printf("Writing %d blocks for bitmap\n", blocks);
 	LBAwrite(bitmap, blocks, 1);
 
 	/*
@@ -212,11 +199,6 @@ void initBitmap(){
 
 }
 
-
-void initRootDir(){
-
-}
-	
 	
 void exitFileSystem (){
     LBAwrite(vcb, 1, 0);

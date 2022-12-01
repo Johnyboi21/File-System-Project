@@ -102,10 +102,6 @@ void printFilesInDir(DE* dir);
 void printFilesInDirWithEmpty(DE* dir);
 
 
-/*
-    Test function that creates blank file in dir
-*/
-int createFileInDir(DE* dir);
 
 
 /*

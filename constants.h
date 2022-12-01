@@ -29,6 +29,7 @@
 #include <time.h>
 #include <stdint.h>
 
+// Volume Control Block. Stores info about the volume to be accessed anywhere
 typedef struct VCB{
 	uint64_t size_of_block;         //size of a individual block
 	uint64_t number_of_blocks;      //counts the number of blocks
@@ -47,4 +48,5 @@ typedef struct VCB{
 
 
 VCB* vcb;
+// Bitmap containing info on free space
 unsigned char* bitmap;

@@ -1,9 +1,17 @@
 /**************************************************************
-* Class:  CSC-415-0# Fall 2021
-* Names: 
-* Student IDs:
-* GitHub Name:
-* Group Name:
+* Class:  CSC-415-03 Fall 2021
+* Names:  Richard Aguilar
+*         Melisa Sever
+*         Ryan Scott
+*         Jonathan Valadez
+*
+* Student IDs: 977075554
+*              921662115
+*              921814228
+*              922274961
+*
+* GitHub Name: raguilar0917
+* Group Name: The Beerman Fan Club
 * Project: Basic File System
 *
 * File: b_io.c
@@ -44,7 +52,8 @@ typedef struct b_fcb
     uint64_t    directoryStartLocation;
     unsigned char fileType;        
     char d_name[256]; 
-	int flagPassed;
+	int flagPassed; // Flags set in open
+    int truncUsed;  // Indicates if trunc was used on the file. Keeps trunc from repeating
 	} b_fcb;
 	
 b_fcb fcbArray[MAXFCBS];
@@ -81,11 +90,7 @@ b_io_fd b_getFCB ()
 // O_RDONLY, O_WRONLY, or O_RDWR
 b_io_fd b_open (char * filename, int flags)
 	{
-	//*** TODO ***:  Modify to save or set any information needed
-	//
-	//	
-
-    printf("Opening %s\n", filename);
+	
 	if (startup == 0) b_init();  //Initialize our system
 	parseData *fdData = parsePath(filename);	//obtain file
 
@@ -131,7 +136,6 @@ b_io_fd b_open (char * filename, int flags)
 
 	
 	b_io_fd returnFd = b_getFCB();				// get our own file descriptor
-    printf("Got an fcd of %d\n", returnFd);
     int elem = fdData->directoryElement;
 	DE* tempEntryPtr = malloc(vcb->size_of_block * fdData->dirPointer->d_reclen);
 	LBAread(tempEntryPtr, fdData->dirPointer->d_reclen, fdData->dirPointer->directoryStartLocation);
@@ -159,6 +163,8 @@ b_io_fd b_open (char * filename, int flags)
     fcbArray[returnFd].bufLen = fcbArray[returnFd].size_bytes;
     fcbArray[returnFd].directoryStartLocation = tempEntryPtr[elem].location;
     fcbArray[returnFd].positionInParent = elem;
+    fcbArray[returnFd].individualFilePosition = 0;
+    fcbArray[returnFd].truncUsed = 0;
 
 	//To-Do: Free mallocs.
 	free(fdData->dirPointer);
@@ -185,48 +191,37 @@ int b_seek (b_io_fd fd, off_t offset, int whence)
 		offset = the position amount we are trying to shift (foward or backward)
 		whence = either from Start of File, Current Spot in file, or End of File.
 	*/
-	int fileLength = sizeof(fcbArray[fd].buf);
-	if(offset > 0){
+	int fileLength = fcbArray[fd].size_bytes;
 		//Start offset from start of file.
 	if(whence = SEEK_SET){
-		//set file position to start of file minus offset.
-		fcbArray[fd].individualFilePosition = fcbArray[fd].buf[0] - offset;
+		//set file position to start of file plus offset.
+		fcbArray[fd].individualFilePosition = fcbArray[fd].individualFilePosition + offset;
 	}
 	//Start offset from end of file.
 	else if(whence = SEEK_END){
-		//set file position to end of file minus offset.
-		fcbArray[fd].individualFilePosition = fileLength - offset;
+		//set file position to end of file plus offset.
+		fcbArray[fd].individualFilePosition = fileLength + offset;
 
 	}
 	//Start offset from current file position.
-	else{
-		//setfile position to current file position minus offset.
-		fcbArray[fd].individualFilePosition =- offset; 
+	else if(whence == SEEK_CUR){
+		//setfile position to current file position plus offset.
+		fcbArray[fd].individualFilePosition =+ offset; 
 	}
 
-	}
-	if(offset < 0){
+	
+	
 
-	//Start offset from start of file.
-	if(whence = SEEK_SET){
-	//set position to start of buffer plus offset.
-	fcbArray[fd].individualFilePosition = fcbArray[fd].buf[0] + offset;
 
-	}
-	//Start offset from end of file.
-	else if(whence = SEEK_END){
-	//set position to end of file plus offset.
-	fcbArray[fd].individualFilePosition = fileLength + offset; 	
+    // Keep seek from sending file past EOF or before
+    if(fcbArray[fd].individualFilePosition < 0){
+        fcbArray[fd].individualFilePosition = 0;
+    }
+    else if(fcbArray[fd].individualFilePosition > fcbArray[fd].size_bytes){
+        fcbArray[fd].individualFilePosition = fcbArray[fd].size_bytes;
+    }
 
-	}
-	//Start offset from current file position.
-	else{
-	//set position to current position plus offset.
-	fcbArray[fd].individualFilePosition += offset;
-	}
-	}
-
-	return fcbArray[fd].individualFilePosition; //Change this
+	return fcbArray[fd].individualFilePosition; 
 	}
 
 
@@ -242,18 +237,87 @@ int b_write (b_io_fd fd, char * buffer, int count)
     }
 
 	//Flag check for write call
-	if(!fcbArray[fd].flagPassed & O_WRONLY){
-		printf("\nb_read ERROR: NO WRITE FLAG PASSED.\n");
+    int flag = fcbArray[fd].flagPassed;
+	if((!(flag & O_WRONLY == flag) && !(flag & O_RDWR) == flag)){
+		printf("\nb_write ERROR: NO WRITE FLAG PASSED.\n");
 		return -1;
 	}
+
+    b_fcb* file = &fcbArray[fd];
+
+
+    // Second condition ensures we only reset once per trunc flag call
+        // This goes off on create, but should be fine
+    if(flag | O_TRUNC == flag && fcbArray[fd].truncUsed == 0){
+        fcbArray[fd].size_bytes = 0;
+        fcbArray[fd].individualFilePosition = 0;
+        fcbArray[fd].truncUsed = 1;
+/*
+        DE* saveFile = (DE*)file->buf;
+        saveFile->size_bytes = saveFile->size_bytes+count;;
+        saveFile->size = file->d_reclen;
+        time_t time_mod = time(0);
+        saveFile->last_modified = time_mod;
+
+    
+        // Update parent with new info of file
+        DE* parent = malloc(saveFile[1].size * vcb->size_of_block);
+        LBAread(parent, saveFile[1].size, saveFile[1].location);
+        parent[file->positionInParent].size_bytes = saveFile->size_bytes;
+        parent[file->positionInParent].size = saveFile->size;
+        parent[file->positionInParent].location = saveFile->location;
+        parent[file->positionInParent].last_modified = time_mod;
+        LBAwrite(parent, parent->size, parent->location);
+        LBAwrite(saveFile, file->d_reclen, file->directoryStartLocation);
+        */
+    }
     //total bytes written count;
     int bytesWroteCount = 0;
 
-    b_fcb* file = &fcbArray[fd];
+    // Calculate bytes left in file
     int available = vcb->size_of_block * file->d_reclen;
-    available-= (sizeof(DE)*2 + file->size_bytes);
+    // Take away '..' and '.' entries, since we don't write there
+    available-= (sizeof(DE)*2);
+    available-= file->individualFilePosition;
+
+    // If want to write more than we have, need to expand
+    if(available < count){
+        int extraBytes = count - available;
+        int extraBlocks = extraBytes / vcb->size_of_block;
+
+        if(extraBytes % vcb->size_of_block != 0){
+            extraBlocks++;
+        }
+        DE* d = (DE*)file->buf;
+        DE* newFile = addNBlocksToDE(d, extraBlocks);
+
+
+        // Reset file buffer to new size
+        file->buf = malloc(newFile->size * vcb->size_of_block);
+
     
-    printf("Bytes available in file is %d. Trying to write %d\n", available, count);
+        LBAwrite(newFile, newFile->size, newFile->location);
+        LBAread(file->buf, newFile->size, newFile->location);
+
+        file->directoryStartLocation = newFile->location;
+        file->d_reclen = newFile->size;
+        file->size_bytes = newFile->size_bytes;
+        file->bufLen = newFile->size;
+
+        free(newFile);
+
+        // Recalc available after resize
+        available = vcb->size_of_block * file->d_reclen;
+
+        available-= (sizeof(DE)*2);
+
+        available-= file->individualFilePosition;
+    
+    }
+    
+
+    
+
     while(bytesWroteCount < count){
         int bytesWritten = 0;
         if((bytesWroteCount + B_CHUNK_SIZE) > count){
@@ -267,31 +331,20 @@ int b_write (b_io_fd fd, char * buffer, int count)
         memcpy(file->buf + (sizeof(DE)*2) + file->individualFilePosition,
          buffer, count);
 
-        bytesWroteCount += bytesWritten;
+    //    bytesWroteCount += bytesWritten;
+
+
+        bytesWroteCount = count;
     }
-	//EOF check
-	if(bytesWroteCount + count > fcbArray->size_bytes){;
-		printf("EOF Reached: \n");
-		count = file->size_bytes - bytesWroteCount + count;
-	}
 
-
-    /*
-    DE* saveFile = malloc(file->d_reclen * vcb->size_of_block);
-    LBAread(saveFile, file->d_reclen, file->directoryStartLocation);
-    saveFile->size_bytes = file->size_bytes;
-    saveFile->size = file->size_bytes;
-    time_t time_mod = time(0);
-    saveFile->last_modified = time_mod;
-    */
-    
 
     DE* saveFile = (DE*)file->buf;
-    saveFile->size_bytes = 22;
+    saveFile->size_bytes = saveFile->size_bytes+count;;
     saveFile->size = file->d_reclen;
     time_t time_mod = time(0);
     saveFile->last_modified = time_mod;
 
+   
     // Update parent with new info of file
     DE* parent = malloc(saveFile[1].size * vcb->size_of_block);
     LBAread(parent, saveFile[1].size, saveFile[1].location);
@@ -299,17 +352,58 @@ int b_write (b_io_fd fd, char * buffer, int count)
     parent[file->positionInParent].size = saveFile->size;
     parent[file->positionInParent].location = saveFile->location;
     parent[file->positionInParent].last_modified = time_mod;
-    printf("Writing %d blocks to %d\n", file->d_reclen, file->directoryStartLocation);
     LBAwrite(parent, parent->size, parent->location);
     LBAwrite(saveFile, file->d_reclen, file->directoryStartLocation);
     
+
+    file->individualFilePosition+= count;
     free(parent);
-    printf("Wrote %d\n", 22);
-    return bytesWroteCount;
+    return count;
+	}
+
+int b_read (b_io_fd fd, char * buffer, int count){
+
+	if (startup == 0) b_init();  //Initialize our system
+
+	// check that fd is between 0 and (MAXFCBS-1)
+	if ((fd < 0) || (fd >= MAXFCBS)){
+		return 0; 					//invalid file descriptor
+	}
+
+    int flag = fcbArray[fd].flagPassed;
+	if(!((flag & O_RDONLY == flag) || ( flag & O_RDWR) == flag)){
+		printf("\nb_read ERROR: NO READ OR READ-WRITE FLAG PASSED.\n");
+		return 0;
+	}
+
+	b_fcb* fcb = &fcbArray[fd];
+
+    // Number of bytes left in file
+    int available = fcbArray[fd].size_bytes - fcbArray[fd].individualFilePosition;
+	
+
+    int deliveredBytes = count;
+    // Make sure not to go past EOF
+    if(available < count){
+        deliveredBytes = available;
+    }
+		
+
+	if (deliveredBytes > 0)
+	{
+        // Copy from buffer offset by filepos and sizeof(DE)*2
+            // That second part skips over the DEs and into the content
+		memcpy(buffer, fcbArray[fd].buf + sizeof(DE)*2 + fcbArray[fd].individualFilePosition, deliveredBytes);
+		fcbArray[fd].individualFilePosition += deliveredBytes;
+
 	}
 
 
+	return (deliveredBytes); 
 
+}
+
+/*
 // Interface to read a buffer
 
 // Filling the callers request is broken into three parts
@@ -343,8 +437,6 @@ int b_read (b_io_fd fd, char * buffer, int count){
 		printf("\nb_read ERROR: NO READ OR READ-WRITE FLAG PASSED.\n");
 		return 0;
 	}
-
-    printf("About to read file with a count of %d\n", count);
 
 	b_fcb* fcb = &fcbArray[fd];
 	int part1, part2, part3;
@@ -430,6 +522,7 @@ int b_read (b_io_fd fd, char * buffer, int count){
 
 }
 	
+*/
 // Interface to Close the file	
 int b_close (b_io_fd fd)
 	{

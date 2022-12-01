@@ -94,7 +94,7 @@ struct fs_stat
 typedef struct parseData
 {
 	fdDir *dirPointer;      // Pointer to fdDir representing last found directory in path
-	int directoryElement;   // Index of 
+	int directoryElement;   // Index of last token within its parent
     int testDirectoryStatus;// 0 if invalid path; 1 if path points to dir; 2 if path to file
     char nameOfLastToken[256];  // Equals name of last token read
 

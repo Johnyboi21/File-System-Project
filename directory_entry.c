@@ -80,7 +80,6 @@ char* int_to_char(int input){
 */
 
 struct new_dir_data* DirectoryInit(DE* parent){
-    printf("In directory init\n");
 
     new_dir_data* ret_data = malloc(sizeof(new_dir_data));
 
@@ -109,11 +108,9 @@ struct new_dir_data* DirectoryInit(DE* parent){
     if(total_bytes % vcb->size_of_block != 0){
         blocks = blocks+1;
     }
-    printf("Malloc %d blocks\n", blocks);
-    printf("That's %ld bytes\n", vcb->size_of_block*blocks);
+   
 
     DE* directory = malloc(vcb->size_of_block*blocks);
-            printf("Malloc success\n");
 
     if(directory == NULL){
         printf("Failed to allocate memory for directory init\n");
@@ -125,9 +122,14 @@ struct new_dir_data* DirectoryInit(DE* parent){
     }
 
     // Get a pointer to free blocks
-        printf("About to read directory\n");
-
     int free_blocks = GetNFreeBlocks(blocks);
+    if(free_blocks == -1){
+        printf("Failed to allocate enough free blocks.\n");
+        free(ret_data);
+
+        return NULL;
+    }
+
     LBAread(directory, blocks, free_blocks);
 
     directory[0].size = blocks;
@@ -143,24 +145,14 @@ struct new_dir_data* DirectoryInit(DE* parent){
         strncpy(directory[i].name, name, MAX_DE_NAME);
         directory[i].is_directory = 1;
     }
-
-//printf("a\n");
-
     
-    if(free_blocks == 0){
-        printf("Failed to find free blocks.\n");
-    }
-    // Set name and location of DEs
-
-  //  printf("free_blocks[0] is %d\n", free_blocks);
-    
+    // Set name and location of DEs    
     char* name = ".\0";
     char* name2 = "..\0";
     strncpy(directory[0].name, name, MAX_DE_NAME);
     directory[0].location = free_blocks;
 
     strncpy(directory[1].name, name2, MAX_DE_NAME);
-    
     
     directory[0].is_directory = 1;
     directory[1].is_directory = 1;
@@ -183,34 +175,24 @@ struct new_dir_data* DirectoryInit(DE* parent){
     directory[1].creation_date = create_time;
     directory[1].last_modified = create_time;
 
-    
-   // for(int i=0; i < MAX_DIRENTRIES; i++){
-     //   free(directory[i]);
-   // }
-
 
     // Set location of new directory in parent
-    // TODO: Handle for no free entries
     if(is_root == 0){
-       // printf("Naming new file\n");
         int loc = findEmptyEntry(parent);       // Find index of first free entry
 
-        while(loc == -1){
-            printf("Not enough dir entries to create directory. Resizing. Current size in blocks is %ld\n", parent[0].size);
+        // If no free entries, means we need more space. Resize
+        if(loc == -1){
             parent = resize(parent); 
-            printf("Size is now %ld\n", parent[0].size);
+            // Update info of parent in new dir
             directory[1].location = parent->location;
             directory[1].size = parent->size;
             ret_data->newDir = parent;
             loc = findEmptyEntry(parent); 
-            break;
-        }
-
-        
-        if(loc != -1){
             
+        }
         
-         //   printf("Dir being put at %d\n", loc); 
+        // Add dir data to parent
+        if(loc != -1){            
             parent[loc].location = free_blocks;     // Set location of DE to new Dir
 
             // May take out naming and have something else deal with it
@@ -219,31 +201,26 @@ struct new_dir_data* DirectoryInit(DE* parent){
             parent[loc].size = blocks;
 
 
-            printf("About to write %ld blocks to %ld\n", parent[0].size, parent[0].location);
-            printf("Also this is index %d\n", loc);
             LBAwrite(parent, parent[0].size, parent[0].location);   // Write changes to parent
-            printf("LBAwrite happened\n");
             
 
             free(new);
-            // TODO: This seems bad
-                // We need to read and write parent whenever we make changes to one of the 50 files? 1.5 kb?
+
 
             ret_data->index = loc;
 
         }
+        // If still not enough after attempting resize, then we can't make
         else{
-            printf("There weren't enough free entries.\n");
-            
+            printf("Error: Not enough space to create new directory.\n");
+            free(ret_data);
+            free(directory);
+            return NULL;
         }
 
     }
 
 
-    //void* realbuff = malloc(512 * blocks);
-    //memcpy(realbuff, directory, );
-
-    printf("Writing %d blocks to location %d\n", blocks, free_blocks);
     uint64_t write = LBAwrite(directory, blocks, free_blocks);
     LBAread(directory, directory[0].size, directory[0].location); // Refresh parent after changes
 
@@ -252,8 +229,7 @@ struct new_dir_data* DirectoryInit(DE* parent){
 
 
     ret_data->location = free_blocks;
-    printf("ret_data tells us that the new dir is at %d\n", free_blocks);
-   // printf("And one more time, parent is %ld blocks and is at %ld\n", parent->size, parent->location);
+   
     return ret_data;
 }
 
@@ -279,6 +255,10 @@ DE* addNBlocksToDE(DE* dir, int extraSize){
 
     // Create new directory with new size
     DE* newDir = malloc(vcb->size_of_block * newDirSize);
+    if(newDir == NULL){
+        printf("Error: Failed to allocate memory.\n");
+        return NULL;
+    }
     // Read location of newDIr
     LBAread(newDir, newDirSize, free_blocks);
 
@@ -294,14 +274,15 @@ DE* addNBlocksToDE(DE* dir, int extraSize){
         }
     }
 
-    
+    // Copy data from old to new
     memcpy(newDir, dir, dir->size * vcb->size_of_block);
-
     // Free up space of old dir
     MarkBlocksFree(dir->location, dir->size);
 
     newDir->location = free_blocks;
     newDir->size = newDirSize;
+
+    // Size treated differently in dirs for the sake of b_io
     if(newDir->is_directory == 1){
         newDir->size_bytes = sizeof(DE) * numEntries;
 
@@ -312,7 +293,6 @@ DE* addNBlocksToDE(DE* dir, int extraSize){
 
     // Update VCB info on root if needed
     if(dir->location == vcb->root_starting_index){
-        printf("We're resizing root\n");
         vcb->root_starting_index = newDir->location;
         vcb->root_size = newDir->size;
     }
@@ -337,16 +317,20 @@ DE* addNBlocksToDE(DE* dir, int extraSize){
             blocksNeeded++;
         }
         for(int i = 2; i < numEntries; i++){
+            // Malloc space for first two entries of DE
+                // This is info on self and info on parent
             buf = malloc(2 * vcb->size_of_block);
+            if(buf == NULL){
+                printf("Failed to allocate memory.\n");
+
+                return NULL;
+            }
             LBAread(buf, blocksNeeded, newDir[i].location);
 
-            printf("That updated %d, named %s\n", i, buf[1].name);
-            printf("Location and size were %ld and %ld, now ", buf[1].location, buf[1].size);
             buf[1].location = newDir->location;
             buf[1].size = newDir->size;
             buf[1].last_modified = newDir->last_modified;
             buf[1].size_bytes = newDir->size_bytes;
-            printf("%ld and %ld\n", buf[1].location, buf[1].size);
             
 
             LBAwrite(buf, blocksNeeded, buf->location);
@@ -361,10 +345,6 @@ DE* addNBlocksToDE(DE* dir, int extraSize){
 
     // If we resized root, then root's [1] entry also needs to know the new info
     if(old_location == newDir[1].location){
-        
-        printf("Root stuff. Location check is %ld\n", newDir[1].location);
-        
-
         newDir[1].location = newDir->location;
         newDir[1].size = newDir->size;
         newDir[1].last_modified = newDir->last_modified;
@@ -395,13 +375,9 @@ DE* addNBlocksToDE(DE* dir, int extraSize){
     free(buf);
     buf = NULL;
 
-    printf("Resized directory to %ld, moving it to %ld\n", newDir->size, newDir->location);
-
 
     free(dir);
     dir = newDir;
-
-        printf("Proofs %ld, %ld\n", dir->size, dir->location);
 
     return dir;
 }
@@ -432,7 +408,6 @@ int findFileInDirectory(DE* dir, char* file_name){
     }
 
     if(not_found == 1){
-        printf("Couldn't find requested directory\n");
         i = -1;
     }
 
@@ -491,8 +466,6 @@ void initTestDirs(){
     DirectoryInit(dir);
     printFilesInDir(dir);
 
-    printf("Adding a file to dir\n");
-    createFileInDir(dir);
     printFilesInDir(dir);
 
     
@@ -521,7 +494,6 @@ int createFile(parseData* data){
         printf("Failed to find space for new file. Attempting to resize\n");
 
         parent = resize(parent);
-        printf("Parent size is now %d\n", parent->size);
 
         if(parent == NULL){
             printf("Resize failed. Could not create file.\n");
@@ -597,99 +569,6 @@ int createFile(parseData* data){
 
     free(new_file);
     free(parent);
-}
-
-
-int createFileInDir(DE* dir){
-    int ret = 1;
-    
-    int index = findEmptyEntry(dir);
-    if (index == -1){
-        printf("Failed to find space for new file\n");
-        return -1;
-    }
-
-
-
-    int blocks = sizeof(DE)*2 / vcb->size_of_block;
-
-    if((sizeof(DE) * 2) % vcb->size_of_block != 0){
-        blocks++;
-    }
-
-
-    int free_blocks = GetNFreeBlocks(blocks);
-    printf("Created file at %d with size %d\n", free_blocks, blocks);
-
-    time_t create_time = time(0);
-
-    // Init with space for . and ..
-    DE* new_file = malloc(blocks * vcb->size_of_block);
-    LBAread(new_file, blocks, free_blocks);
-
-    new_file->size_bytes = 0;
-    new_file->size = blocks;
-    new_file->is_directory = 0;
-    new_file->location = free_blocks;
-
-    new_file->creation_date = create_time;
-    new_file->last_modified = create_time;
-    strncpy(new_file->name, ".\0", MAX_DE_NAME);
-
-
-    strncpy(new_file[1].name, "..\0", MAX_DE_NAME);
-    new_file[1].location = dir->location;
-    new_file[1].is_directory = 1;
-    new_file[1].size = dir->size;
-    new_file[1].size_bytes = dir->size_bytes;
-    new_file[1].creation_date = dir->creation_date;
-    new_file[1].last_modified = dir->last_modified;
-
-    dir[index].size = new_file->size;
-    dir[index].is_directory = 0;
-    dir[index].location = free_blocks;
-    dir[index].last_modified = new_file->last_modified;
-    dir[index].creation_date = new_file->creation_date;
-
-
-    // Set new name of file
-    char * name = "TestFile\0";
-    strncpy(dir[index].name, name, MAX_DE_NAME);
-
-
-
-
-    char* file_content = malloc(50);
-
-    char* text = "Here is a test message for files of 50 characters.";
-
-    
-
-    strncpy(file_content, text, 50);
-
-
-    char* n = (char*)new_file;
-    memcpy(n+(sizeof(DE)*2), file_content, 50);
-
-    
-
-    new_file->size_bytes+=50;
-    dir[index].size_bytes = new_file->size_bytes;
-
-
-    LBAwrite(dir, dir->size, dir->location);
-
-    LBAwrite(new_file, blocks, free_blocks);
-
-
-    char* read = malloc(new_file->size_bytes);
-
-    strncpy(read, n+sizeof(DE)*2, new_file->size_bytes);
-
-    free(file_content);
-    free(new_file);
-    free(read);
-    return ret;
 }
 
 
