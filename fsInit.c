@@ -27,7 +27,6 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <stdio.h>
-#include <string.h>
 
 #include "fsLow.h"
 #include "mfs.h"
@@ -80,8 +79,6 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
 	LBAread(vcb, 1, 0);
 
 	if(vcb->signature == SIGNATURE){
-		printf("\nVCB already exist!\n");
-		printVCB();
 
         bitmap = malloc(vcb->number_of_blocks);
 
@@ -100,9 +97,6 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
 		//free block map that represents the whole volume
 		//begins directly after the VCB;
 
-
-		printf("\nVCB Initialized!!\n");
-		printVCB();
 
 
         new_dir_data* data = DirectoryInit(NULL);
@@ -125,9 +119,7 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
         
         int i = GetFreeBlock(0);
 
-       // initTestDirs();
 
-        printVCB();
         
 
         
@@ -135,8 +127,8 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
 	}
 
     // Set initial CWD to root
-    current_working_dir = malloc(MAX_PATH_LENGTH);
-    strncpy(current_working_dir, "/\0", 2);
+    initCWD();
+    
 
 
 
@@ -206,9 +198,5 @@ void exitFileSystem (){
 	free(vcb);
 	free(bitmap);
     free(current_working_dir);
-	printf ("System exiting\n");
 	}
 
-void printVCB(){
-	printf("Size of a Block: %ld\nNumber of Blocks: %ld\nBlocks Available: %ld\nSignature: %ld\n", vcb->size_of_block, vcb->number_of_blocks, vcb->blocks_available, vcb->signature);
-}

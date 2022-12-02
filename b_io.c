@@ -136,11 +136,16 @@ b_io_fd b_open (char * filename, int flags)
 
 	
 	b_io_fd returnFd = b_getFCB();				// get our own file descriptor
+
+    // Element of file within parent
     int elem = fdData->directoryElement;
+    // Ptr to parent dir
 	DE* tempEntryPtr = malloc(vcb->size_of_block * fdData->dirPointer->d_reclen);
 	LBAread(tempEntryPtr, fdData->dirPointer->d_reclen, fdData->dirPointer->directoryStartLocation);
 
+    // Malloc enough space to fit file in buffer
 	fcbArray[returnFd].buf = malloc(tempEntryPtr[elem].size * vcb->size_of_block);	//allocate memory
+    // Read from that element into the buffer
     LBAread(fcbArray[returnFd].buf, tempEntryPtr[elem].size, tempEntryPtr[elem].location);
 	fcbArray[returnFd].flagPassed = flags;
 
@@ -233,14 +238,14 @@ int b_write (b_io_fd fd, char * buffer, int count)
 
     // check that fd is between 0 and (MAXFCBS-1)
     if ((fd < 0) || (fd >= MAXFCBS)){
-        return (-1);                    //invalid file descriptor
+        return (0);                    //invalid file descriptor
     }
 
 	//Flag check for write call
     int flag = fcbArray[fd].flagPassed;
 	if((!(flag & O_WRONLY == flag) && !(flag & O_RDWR) == flag)){
 		printf("\nb_write ERROR: NO WRITE FLAG PASSED.\n");
-		return -1;
+		return 0;
 	}
 
     b_fcb* file = &fcbArray[fd];
@@ -249,12 +254,13 @@ int b_write (b_io_fd fd, char * buffer, int count)
     // Second condition ensures we only reset once per trunc flag call
         // This goes off on create, but should be fine
     if(flag | O_TRUNC == flag && fcbArray[fd].truncUsed == 0){
-        fcbArray[fd].size_bytes = 0;
-        fcbArray[fd].individualFilePosition = 0;
-        fcbArray[fd].truncUsed = 1;
-/*
+        file->size_bytes = 0;
+        file->individualFilePosition = 0;
+        file->truncUsed = 1;
+
+        // Need to save new size to file
         DE* saveFile = (DE*)file->buf;
-        saveFile->size_bytes = saveFile->size_bytes+count;;
+        saveFile->size_bytes = file->size_bytes;
         saveFile->size = file->d_reclen;
         time_t time_mod = time(0);
         saveFile->last_modified = time_mod;
@@ -269,7 +275,9 @@ int b_write (b_io_fd fd, char * buffer, int count)
         parent[file->positionInParent].last_modified = time_mod;
         LBAwrite(parent, parent->size, parent->location);
         LBAwrite(saveFile, file->d_reclen, file->directoryStartLocation);
-        */
+
+        free(parent);
+        
     }
     //total bytes written count;
     int bytesWroteCount = 0;
@@ -357,6 +365,7 @@ int b_write (b_io_fd fd, char * buffer, int count)
     
 
     file->individualFilePosition+= count;
+
     free(parent);
     return count;
 	}
@@ -383,8 +392,8 @@ int b_read (b_io_fd fd, char * buffer, int count){
 	
 
     int deliveredBytes = count;
-    // Make sure not to go past EOF
-    if(available < count){
+    // Make sure not to go past EOF, and don't read if we have nothing available
+    if(available < count || available == 0){
         deliveredBytes = available;
     }
 		

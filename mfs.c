@@ -125,7 +125,7 @@ int fs_rmdir(const char *pathname){
             LBAread(dir, dir[1].size, dir[1].location);
 
             char* name = "\0";
-            strncpy(dir[dir_info->directoryElement].name, name, 256);
+            strncpy(dir[dir_info->directoryElement].name, name, MAX_DE_NAME);
 
 
             MarkBlocksFree(dir[dir_info->directoryElement].location, dir[dir_info->directoryElement].size);
@@ -180,7 +180,7 @@ int fs_delete(char* filename){      //removes a file
 
 
         char* name2 = "\0";
-        strncpy(tempCheck[filePosition].name, name2, 256);
+        strncpy(tempCheck[filePosition].name, name2, MAX_DE_NAME);
 
         
         //Mark blocks that the file was using as free.
@@ -196,6 +196,7 @@ int fs_delete(char* filename){      //removes a file
         //deleteFileData->directoryElement = 0;
 
 
+        free(deleteFileData->dirPointer);
         free(deleteFileData);
         free(tempCheck);
         return 0;
@@ -975,4 +976,9 @@ int appendDEtoDir(DE* fileParent, int index, DE* dir, DE* file){
         free(dir);
     }
     return ret;
+}
+
+void initCWD(){
+    current_working_dir = malloc(MAX_PATH_LENGTH);
+    strncpy(current_working_dir, "/\0", 2);
 }

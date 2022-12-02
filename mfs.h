@@ -119,5 +119,8 @@ int countPathTokens(char* pathname);
 
 int fs_move(char* src, char* dest);
 
+// Sets CWD to be root
+void initCWD();
+
 #endif
 
