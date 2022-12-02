@@ -27,7 +27,6 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <stdio.h>
-#include <string.h>
 
 #include "fsLow.h"
 #include "mfs.h"
@@ -64,7 +63,6 @@ typedef struct Directory{
 
 void printVCB();
 void initBitmap();
-void initRootDir();
 //int getFreeBlock();
 
 
@@ -81,10 +79,9 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
 	LBAread(vcb, 1, 0);
 
 	if(vcb->signature == SIGNATURE){
-		printf("\nVCB already exist!\n");
-		printVCB();
 
-        bitmap = malloc(5 * vcb->size_of_block);
+        bitmap = malloc(vcb->number_of_blocks);
+
         LBAread(bitmap, 5, 1);
 
 	}
@@ -96,50 +93,92 @@ int initFileSystem (uint64_t numberOfBlocks, uint64_t blockSize){
 		
 		LBAwrite(vcb, 1, 0);
 
-        vcb->blocks_available = vcb->blocks_available - 1;
         initBitmap();
 		//free block map that represents the whole volume
-		//beginds directly after the VCB;
+		//begins directly after the VCB;
 
 
-		printf("\nVCB Initialized!!\n");
-		printVCB();
 
-        DirectoryInit(NULL);
-        printf("\nMade root!\n");
+        new_dir_data* data = DirectoryInit(NULL);
+        vcb->root_starting_index = data->location;
+        
+        free(data);
+        data = NULL;
 
-        vcb->root_starting_index = 6;
-        vcb->root_size = 30;
+        // Have to get 30 here somehow
+        int root_size = sizeof(DE) * MAX_DIRENTRIES;
+        if(root_size % vcb->size_of_block != 0){
+            root_size = (root_size/vcb->size_of_block)+1;
+        }
+        else
+        root_size = root_size/vcb->size_of_block;
+        vcb->root_size = root_size;
 
+
+        LBAwrite(vcb, 1, 0);
+        
         int i = GetFreeBlock(0);
-        printf("First free block is now at %d\n", i);
 
-        initTestDirs();
 
-        printVCB();
+        
+
+        
+        
 	}
+
+    // Set initial CWD to root
+    initCWD();
+    
+
+
+
 	return 0;
 }
 
 
 void initBitmap(){
 
-	//allocate bitmap i.e  5 * 512 (bytes)
-	bitmap = malloc(5 * vcb->size_of_block);
-    //LBAread(bitmap, 5, 1);
+	//allocate bitmap 
+        // It needs to be number_of_blocks/8 bytes large; 1 bit = 1 block
+    int bytes = vcb->number_of_blocks/8;
+    if(vcb->number_of_blocks % 8 != 0){
+        bytes++;
+    }
 
-	//size of blocks in bytes -not bit.
+    int blocks = bytes/vcb->size_of_block;
+    if(bytes % vcb->size_of_block != 0){
+        blocks++;
+    }
 
-	//first byte - 0000 0011 (0 means allocated, 1 free).
-	bitmap[0] = 0x03;
+    // We only need `bytes` size, but LBAwrite wants it in blocks
+    bitmap = malloc(vcb->size_of_block*blocks);
+
 	
-	//Set rest of "bits" as free
-	for(int i = 1; i < 5 * vcb->size_of_block; i++){
+	// Initialize all blocks to free
+        
+	for(int i = 0; i < bytes; i++){
 		bitmap[i] = 0xFF; //i.e 1111 1111
 	}
 
+    // Note that, because of satisfying LBAwrite, we have more bits than blocks
+        // Blocks after `bytes` are marked not free because of this
+    for(int i = bytes; i < vcb->size_of_block*blocks; i++){
+		bitmap[i] = 0x00; //i.e 1111 1111
+	}
+
+
+    vcb->bitmap_size_blocks = blocks;
+    vcb->bitmap_size_bytes = bytes;    
+
+
+    // Mark first first block used, for VCB
+    GetNFreeBlocks(1);
+
+    // Mark bitmap blocks used
+    GetNFreeBlocks(blocks);
+
 	//step d of free space
-	LBAwrite(bitmap, 5, 1);
+	LBAwrite(bitmap, blocks, 1);
 
 	/*
 	Return the starting block number of the free space
@@ -148,24 +187,16 @@ void initBitmap(){
 	 Or mark it yourself if the VCB is a global structure.
 	*/
 	vcb->bitmap_starting_index = 1;
-    vcb->blocks_available = vcb->blocks_available - 5;
+    
 
 }
 
-
-void initRootDir(){
-
-}
-	
 	
 void exitFileSystem (){
     LBAwrite(vcb, 1, 0);
-    LBAwrite(bitmap, 5, 1);
+    LBAwrite(bitmap, vcb->bitmap_size_blocks, vcb->bitmap_starting_index);
 	free(vcb);
 	free(bitmap);
-	printf ("System exiting\n");
+    free(current_working_dir);
 	}
 
-void printVCB(){
-	printf("Size of a Block: %ld\nNumber of Blocks: %ld\nBlocks Available: %ld\nSignature: %ld\n", vcb->size_of_block, vcb->number_of_blocks, vcb->blocks_available, vcb->signature);
-}

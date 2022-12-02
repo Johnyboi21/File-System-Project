@@ -51,3 +51,11 @@ int power(int base, int exp);
 
 */
 int FlipBitUsed(unsigned char byte, int bit);
+
+/*
+    Param: A byte and a bit index between 0 and 7
+    Turns given bit into a 1
+
+    Returns: Byte with changes
+*/
+int FlipBitFree(unsigned char byte, int bit);

@@ -26,15 +26,27 @@
 
 #include <time.h>
 #include <stdint.h>
+#include "mfs.h"
 //const int size_of_block = 512;
 typedef struct DE{
 	char name[256];             // Name of file
-	uint64_t size;              // Size of DE in bytes
+	uint64_t size;              // Size of DE in blocks
+    uint64_t size_bytes;        // Size of DE in bytes
 	uint64_t location;          // Location on disk
     uint64_t is_directory;
 	time_t creation_date;       // Date created
 	time_t last_modified;       // Recent modify date
 } DE;
+
+typedef struct new_dir_data{
+    // Info on new dir
+    uint64_t location;      // Block number of new dir
+    uint64_t index;         // Index of new dir within parent
+
+    DE* newDir;             // Points to new location if dir resized; else NULL
+
+}new_dir_data;
+
 
 /*
     1. Allocate space on disk
@@ -50,7 +62,7 @@ typedef struct DE{
     Returns: Int representing block number of directory
 */
 
-int DirectoryInit(DE* parent);
+struct new_dir_data* DirectoryInit(DE* parent);
 
 
 /*
@@ -90,7 +102,49 @@ void printFilesInDir(DE* dir);
 void printFilesInDirWithEmpty(DE* dir);
 
 
+
+
 /*
-    Test function that creates blank file in dir
+    Returns number of files in given dir pointer
+    Returns 2 on empty directory (contains . and .. only)
 */
-int createFileInDir(DE* dir);
+int numberFilesInDir(DE* dir);
+
+
+
+
+/*
+    Calls and returns result from addNBlocksToDE with 
+    extraSize = dir size
+    In other words, double the sise of the given DE
+
+    Returns new dir on success, else NULL
+*/
+DE* resize(DE* dir);
+
+
+
+/*
+    Reallocates memory for input dir
+    Requests new free blocks for new size, and moves
+    dir as appropriate
+
+    Returns new dir on success, NULL on fail
+
+*/
+DE* addNBlocksToDE(DE* dir, int extraSize);
+
+
+
+char* int_to_char(int input);
+
+
+int appendDEtoDir(DE* fileParent, int index, DE* dir, DE* file);
+
+
+/* Create a file with data from parsePath
+    Data is obtained with parsePath in b_open
+
+    Returns 1 on success, else 0
+*/
+int createFile(parseData* data);

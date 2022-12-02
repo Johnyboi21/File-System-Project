@@ -92,3 +92,16 @@ int FlipBitUsed(unsigned char byte, int bit){
 
     return byte;
 }
+
+/*
+    Param: A byte and a bit index between 0 and 7
+    Turns given bit into a 1
+
+    Returns: Byte with changes
+*/
+int FlipBitFree(unsigned char byte, int bit){
+    bit = power(2, 7-bit);  // 7-bit because index is left to right
+    byte = byte | bit;
+
+    return byte;
+}
